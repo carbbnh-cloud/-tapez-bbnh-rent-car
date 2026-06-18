@@ -3,4 +3,4 @@ pandas>=2.1.0
 sqlalchemy
 psycopg2-binary
 Pillow>=10.0.0
-protobuf>=4.21.1
+protobuf>=4.21.0
