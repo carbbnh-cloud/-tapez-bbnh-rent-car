@@ -1,4 +1,6 @@
-streamlit==1.28.1
+streamlit>=1.30.0
 pandas>=2.1.0
 sqlalchemy
 psycopg2-binary
+Pillow>=10.0.0
+protobuf>=4.21.1
