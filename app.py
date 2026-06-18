@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import streamlit as st
+from sqlalchemy import create_engine
 import os
 import base64
 from datetime import datetime, timedelta, time
