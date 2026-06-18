@@ -1,6 +1,4 @@
-streamlit>=1.30.0
-pandas>=2.1.0
-sqlalchemy
+streamlit
+pandas
 psycopg2-binary
-Pillow>=10.0.0
-protobuf>=4.21.0
+openpyxl
