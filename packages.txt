@@ -1,1 +1,4 @@
 libz-dev
+libjpeg-dev
+libpng-dev
+libwebp-dev
