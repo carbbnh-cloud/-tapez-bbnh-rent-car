@@ -1,16 +1,42 @@
 import streamlit as st
-
 import pandas as pd
-
-import streamlit as st
-
-from sqlalchemy import create_engine
-
+import psycopg2  # Assurez-vous que ce module est installé
 import os
-
 import base64
-
 from datetime import datetime, timedelta, time
+
+# --- CONNEXION SUPABASE (Au lieu de SQLite) ---
+def get_db_connection():
+    return psycopg2.connect(
+        host=st.secrets["SUPABASE_URL"],
+        database=st.secrets["SUPABASE_DB"],
+        user=st.secrets["SUPABASE_USER"],
+        password=st.secrets["SUPABASE_PASSWORD"],
+        port=5432,
+        sslmode='require'
+    )
+
+def executer(sql, params=(), modifier=False):
+    conn = None
+    try:
+        conn = get_db_connection()
+        if modifier:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            conn.commit()
+            cursor.close()
+            return True
+        else:
+            return pd.read_sql_query(sql, conn, params=params)
+    except Exception as e:
+        st.error(f"Erreur DB : {e}")
+        return pd.DataFrame()
+    finally:
+        if conn: conn.close()
+
+# --- SUPPRIMEZ LA FONCTION "preparer_base" ---
+# Dans Supabase, vos tables sont déjà créées dans le SQL Editor.
+# Ne tentez plus de créer des tables via sqlite3 dans le code.
 
 
 # --- CONFIGURATION DE LA PAGE ---
