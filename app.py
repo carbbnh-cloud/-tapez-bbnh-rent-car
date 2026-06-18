@@ -1,20 +1,17 @@
 import streamlit as st
 import pandas as pd
 import psycopg2
-import os
 import base64
 from datetime import datetime
 
-# --- CONFIGURATION (SUPABASE) ---
-# Assurez-vous que vos Secrets sont bien définis dans Streamlit Cloud
+# --- 1. CONFIGURATION DE CONNEXION ---
 def get_db_connection():
     return psycopg2.connect(
         host=st.secrets["SUPABASE_URL"],
         database=st.secrets["SUPABASE_DB"],
         user=st.secrets["SUPABASE_USER"],
         password=st.secrets["SUPABASE_PASSWORD"],
-        port=5432,
-        sslmode='require'
+        port=5432, sslmode='require'
     )
 
 def executer(sql, params=(), modifier=False):
@@ -23,27 +20,50 @@ def executer(sql, params=(), modifier=False):
         conn = get_db_connection()
         if modifier:
             cursor = conn.cursor()
-            cursor.execute(sql, params)
+            # Adaptation PostgreSQL (%s au lieu de ?)
+            sql_pg = sql.replace('?', '%s')
+            cursor.execute(sql_pg, params)
             conn.commit()
             cursor.close()
             return True
         else:
             return pd.read_sql_query(sql, conn, params=params)
     except Exception as e:
-        st.error(f"Erreur Supabase : {e}")
+        st.error(f"Erreur DB : {e}")
         return pd.DataFrame()
     finally:
         if conn: conn.close()
 
-# --- SUPPRIMEZ LA FONCTION "preparer_base()" ---
-# Ne l'appelez plus à la fin de votre script (l. 277).
-# Les tables doivent être créées une seule fois dans l'éditeur SQL de Supabase.
-
-# --- DESIGN & LOGIQUE ---
+# --- 2. CONFIGURATION PAGE ---
 st.set_page_config(page_title="BBNH OS — Gestion Premium", layout="wide", page_icon="🏎️")
 
-# [Insérez ici tout votre bloc CSS original]
+# (Gardez ici votre bloc CSS original)
+st.markdown("<style>/* Votre CSS ici */</style>", unsafe_allow_html=True)
 
-# --- MODIFICATION DE VOS REQUÊTES ---
-# Partout où vous aviez "INSERT OR REPLACE", remplacez par :
-# executer("INSERT INTO table (...) VALUES (...) ON CONFLICT (id) DO UPDATE ...", params, modifier=True)
+# --- 3. LOGIQUE DES MODULES ---
+st.sidebar.title("BBNH CONSOLE")
+menu = st.sidebar.radio("Navigation", ["Tableau de Bord", "Planning", "CRM", "Vidanges"])
+
+if menu == "Tableau de Bord":
+    st.header("📊 Vue d'ensemble")
+    # Exemple : Récupérer les données de la flotte
+    df = executer("SELECT * FROM stock")
+    st.dataframe(df)
+
+elif menu == "Planning":
+    st.header("🗓️ Planning")
+    # Récupérer les mouvements
+    mouvements = executer("SELECT * FROM mouvements")
+    st.write(mouvements)
+
+elif menu == "CRM":
+    st.header("👥 Gestion Clients")
+    with st.form("client_form"):
+        nom = st.text_input("Nom")
+        submit = st.form_submit_button("Sauvegarder")
+        if submit:
+            executer("INSERT INTO clients (nom) VALUES (?)", (nom,), modifier=True)
+            st.success("Client ajouté !")
+
+# --- 4. FIN DU SCRIPT ---
+# NE PAS APPELER preparer_base() ICI.
