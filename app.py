@@ -4,7 +4,21 @@ import sqlite3
 import os
 import base64
 from datetime import datetime, timedelta, time
+# --- SÉCURITÉ : ACCÈS RESTREINT ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
+if not st.session_state.authenticated:
+    st.title("🔒 Accès BBNH OS")
+    # Choisissez un mot de passe simple pour vous deux
+    password = st.text_input("Entrez le code d'accès :", type="password")
+    if st.button("Valider"):
+        if password == "1234": # Remplacez 1234 par votre code secret
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Code incorrect !")
+    st.stop() # Arrête l'exécution si le code est faux
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="BBNH OS — Gestion Premium", 
