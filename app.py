@@ -4,21 +4,29 @@ import sqlite3
 import os
 import base64
 from datetime import datetime, timedelta, time
-# --- SÉCURITÉ : ACCÈS RESTREINT ---
+# --- LOGIQUE DE LOGIN (Placer ici tout en haut de app.py) ---
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
-    st.title("🔒 Accès BBNH OS")
-    # Choisissez un mot de passe simple pour vous deux
-    password = st.text_input("Entrez le code d'accès :", type="password")
-    if st.button("Valider"):
-        if password == "1234": # Remplacez 1234 par votre code secret
+    st.markdown("<h1 style='text-align: center;'>🔒 Accès BBNH OS</h1>", unsafe_allow_html=True)
+    
+    # Formulaire de login
+    login = st.text_input("Nom d'utilisateur")
+    password = st.text_input("Mot de passe", type="password")
+    
+    if st.button("Connexion"):
+        # Vérification de vos identifiants
+        if login == "carbbnh" and password == "oussamabnh":
             st.session_state.authenticated = True
-            st.rerun()
+            st.rerun() # Rafraîchit la page pour accéder à l'application
         else:
-            st.error("Code incorrect !")
-    st.stop() # Arrête l'exécution si le code est faux
+            st.error("Nom d'utilisateur ou mot de passe incorrect !")
+            
+    st.stop() # Bloque l'exécution du reste de l'application si non connecté
+
+# --- FIN DU BLOC LOGIN ---
+# Le reste de votre code (set_page_config, CSS, Tabs...) suit normalement ici.
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="BBNH OS — Gestion Premium", 
