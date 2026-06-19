@@ -1027,3 +1027,13 @@ with tab_admin:
         if st.button("💥 HARD RESET COMPLET", use_container_width=True):
             for t in ["mouvements", "contrats", "clients", "stock", "vidanges"]: executer(f"DELETE FROM {t}", modifier=True)
             st.rerun()
+# --- FOOTER DANS LA SIDEBAR ---
+st.sidebar.markdown("---")
+st.sidebar.markdown(
+    """
+    <div style="text-align: center; color: #666; font-size: 0.8rem; margin-top: 20px;">
+        Powered & Secured by <b>Chbaya7</b>
+    </div>
+    """, 
+    unsafe_allow_html=True
+)
