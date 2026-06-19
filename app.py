@@ -1027,11 +1027,29 @@ with tab_admin:
         if st.button("💥 HARD RESET COMPLET", use_container_width=True):
             for t in ["mouvements", "contrats", "clients", "stock", "vidanges"]: executer(f"DELETE FROM {t}", modifier=True)
             st.rerun()
-# --- FOOTER DANS LA SIDEBAR ---
+# --- FOOTER PROFESSIONNEL ---
 st.sidebar.markdown("---")
 st.sidebar.markdown(
     """
-    <div style="text-align: center; color: #666; font-size: 0.8rem; margin-top: 20px;">
+    <style>
+    .footer {
+        text-align: center;
+        padding: 20px 0;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        color: #666;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+        transition: color 0.3s ease;
+    }
+    .footer:hover {
+        color: #e60000;
+    }
+    .footer b {
+        color: #ffffff;
+        font-weight: 600;
+    }
+    </style>
+    <div class="footer">
         Powered & Secured by <b>Chbaya7</b>
     </div>
     """, 
