@@ -16,7 +16,7 @@ st.set_page_config(
 # --- STYLE CSS AVANCÉ : CHARTE GRAPHIQUE BBNH ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
     
     html, body, [data-testid="stAppViewContainer"] {
         font-family: 'Plus Jakarta Sans', sans-serif !important;
@@ -26,13 +26,22 @@ st.markdown("""
     
     .main .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
     
+    /* --- CORRECTION POUR LA SIDEBAR --- */
     section[data-testid="stSidebar"] {
         background-color: #07080a !important;
         border-right: 1px solid #1f242e !important;
         min-width: 450px !important;
         max-width: 450px !important;
     }
-    
+
+    /* --- REGLE RESPONSIVE POUR MOBILE --- */
+    @media (max-width: 600px) {
+        section[data-testid="stSidebar"] {
+            min-width: 100% !important;
+            max-width: 100% !important;
+        }
+    }
+
     div[data-testid="stSidebarUserContent"] {
         padding: 2rem 1.5rem !important;
     }
