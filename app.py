@@ -1027,30 +1027,38 @@ with tab_admin:
         if st.button("💥 HARD RESET COMPLET", use_container_width=True):
             for t in ["mouvements", "contrats", "clients", "stock", "vidanges"]: executer(f"DELETE FROM {t}", modifier=True)
             st.rerun()
-# --- FOOTER PROFESSIONNEL ---
+# --- FOOTER PROFESSIONNEL AMÉLIORÉ ---
 st.sidebar.markdown("---")
 st.sidebar.markdown(
     """
     <style>
-    .footer {
+    .footer-container {
         text-align: center;
-        padding: 20px 0;
+        padding-top: 15px;
+        color: #888;
         font-family: 'Plus Jakarta Sans', sans-serif;
-        color: #666;
+    }
+    .footer-main {
         font-size: 0.85rem;
         letter-spacing: 0.5px;
-        transition: color 0.3s ease;
+        margin-bottom: 5px;
     }
-    .footer:hover {
-        color: #e60000;
-    }
-    .footer b {
+    .footer-brand {
+        font-size: 0.95rem;
+        font-weight: 700;
         color: #ffffff;
-        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .footer-copyright {
+        font-size: 0.75rem;
+        opacity: 0.6;
     }
     </style>
-    <div class="footer">
-        Powered & Secured by <b>Chbaya7</b>
+    <div class="footer-container">
+        <div class="footer-main">Powered & Secured by</div>
+        <div class="footer-brand">Chbaya7</div>
+        <div class="footer-copyright">© 2026 All rights reserved.</div>
     </div>
     """, 
     unsafe_allow_html=True
