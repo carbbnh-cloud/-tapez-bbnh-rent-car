@@ -6,8 +6,8 @@ from datetime import datetime
 from supabase import create_client, Client
 
 # --- CONFIGURATION SUPABASE ---
-supabase: Client = create_client(st.secrets["https://pwsxxmmlscvazaictocg.supabase.com"], st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3h4bW1sc2N2YXphaWN0b2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2ODk2MzUsImV4cCI6MjA5NzI2NTYzNX0.Dhg-fnZ_OMkk59e9w58X6DzZRr-Y3nd8PBq_cc9SH48"])
-
+# REMPLACEZ VOTRE LIGNE 9 PAR CECI :
+supabase: Client = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 # --- FONCTION SUPABASE UNIVERSELLE ---
 def executer_supa(table, operation, data=None, filters=None):
     try:
