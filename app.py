@@ -1,10 +1,28 @@
+from supabase import create_client, Client
 import streamlit as st
 import pandas as pd
-import sqlite3
-import os
-import base64
-from datetime import datetime, timedelta, time
 
+# Initialisation
+supabase: Client = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
+def executer(table, method, data=None, filters=None):
+    try:
+        q = supabase.table(table)
+        if method == "select":
+            query = q.select("*")
+            if filters:
+                for col, op, val in filters:
+                    if op == "eq": query = query.eq(col, val)
+            return pd.DataFrame(query.execute().data)
+        elif method == "insert":
+            return q.insert(data).execute()
+        elif method == "delete":
+            query = q.delete()
+            for col, op, val in filters: query = query.eq(col, val)
+            return query.execute()
+    except Exception as e:
+        st.error(f"Erreur Supabase : {e}")
+        return pd.DataFrame()
 # --- LOGIQUE DE LOGIN (Placer ici tout en haut de app.py) ---
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
