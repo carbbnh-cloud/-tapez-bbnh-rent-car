@@ -1,22 +1,25 @@
 import streamlit as st
 import pandas as pd
-from supabase import create_client, Client
-from datetime import datetime
+import os
 import base64
+from datetime import datetime
+from supabase import create_client, Client
 
-# --- CONFIGURATION ---
-supabase: Client = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+# --- CONFIGURATION SUPABASE ---
+supabase: Client = create_client(st.secrets["https://pwsxxmmlscvazaictocg.supabase.com"], st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3h4bW1sc2N2YXphaWN0b2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2ODk2MzUsImV4cCI6MjA5NzI2NTYzNX0.Dhg-fnZ_OMkk59e9w58X6DzZRr-Y3nd8PBq_cc9SH48"])
 
-def executer_supa(table, method, data=None, filters=None):
+# --- FONCTION SUPABASE UNIVERSELLE ---
+def executer_supa(table, operation, data=None, filters=None):
     try:
         q = supabase.table(table)
-        if method == "select":
+        if operation == 'select':
             query = q.select("*")
             if filters:
                 for col, op, val in filters: query = query.eq(col, val)
             return pd.DataFrame(query.execute().data)
-        elif method == "insert": return q.insert(data).execute()
-        elif method == "delete":
+        elif operation == 'insert':
+            return q.insert(data).execute()
+        elif operation == 'delete':
             query = q.delete()
             for col, op, val in filters: query = query.eq(col, val)
             return query.execute()
@@ -24,39 +27,42 @@ def executer_supa(table, method, data=None, filters=None):
         st.error(f"Erreur Supabase : {e}")
         return pd.DataFrame()
 
-# --- INTERFACE (Exemple de conversion TAB 7 ADMIN) ---
-# Remplacez votre ancien bloc TAB 7 par celui-ci :
+# --- CONFIGURATION PAGE ---
+st.set_page_config(page_title="BBNH OS", layout="wide")
+
+# --- NAVIGATION ---
+tabs = st.tabs(["🔍 Visionneuse", "📝 Contrats", "👥 Clients", "⚙️ Admin"])
+tab_visionneuse, tab_contrats, tab_clients, tab_admin = tabs
+
+# --- EXEMPLE CONVERSION : TAB ADMIN ---
 with tab_admin:
-    st.markdown("### ⚙️ Panneau de Configuration Système (Cloud)")
-    st.warning("Actions irréversibles sur la base de données distante.")
-    
+    st.markdown("### ⚙️ Panneau de Configuration Système")
     col_a1, col_a2 = st.columns(2)
+    
     with col_a1:
-        if st.button("🗑️ PURGER TOUS LES MOUVEMENTS"):
+        if st.button("🗑️ PURGER MOUVEMENTS"):
             if st.checkbox("Confirmer la purge ?"):
-                # Suppression via Supabase
                 executer_supa("mouvements", "delete", filters=[("id", "neq", 0)])
-                st.success("Données purgées du Cloud.")
+                st.success("Mouvements effacés du Cloud.")
     
     with col_a2:
-        if st.button("🗑️ RÉINITIALISER BASE CLIENTS"):
+        if st.button("🔄 RÉINITIALISER CLIENTS"):
             if st.checkbox("Confirmer ?"):
                 executer_supa("clients", "delete", filters=[("id", "neq", 0)])
-                st.success("Base clients réinitialisée.")
+                st.success("Clients effacés du Cloud.")
 
-# --- CONVERSION FORMULAIRE CLIENT ---
-# Au lieu de votre SQL, utilisez ceci :
-if st.button("Enregistrer le client"):
-    if n_prenom and n_nom:
-        executer_supa("clients", "insert", data={
-            "Prénom": n_prenom,
-            "Nom": n_nom,
-            "CIN": n_cin,
-            "Numéro_de_téléphone": n_tel,
-            "Date_Délivrance_CIN": n_d_cin.strftime("%Y-%m-%d")
-        })
-        st.success("Client enregistré dans Supabase !")
-        st.rerun()
+# --- EXEMPLE CONVERSION : AJOUT CLIENT ---
+with tab_clients:
+    st.markdown("### ➕ Ajouter un Client")
+    with st.form("form_client"):
+        n_prenom = st.text_input("Prénom")
+        n_nom = st.text_input("Nom")
+        if st.form_submit_button("Enregistrer"):
+            executer_supa("clients", "insert", data={
+                "Prénom": n_prenom,
+                "Nom": n_nom
+            })
+            st.success("Enregistré dans le Cloud !")
 
 # --- LOGIQUE DE LOGIN (Placer ici tout en haut de app.py) ---
 if "authenticated" not in st.session_state:
