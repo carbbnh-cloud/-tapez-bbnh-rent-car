@@ -1,92 +1,10 @@
 import streamlit as st
 import pandas as pd
+import sqlite3
 import os
 import base64
-from datetime import datetime
-from supabase import create_client, Client
+from datetime import datetime, timedelta, time
 
-# --- CONFIGURATION SUPABASE ---
-# REMPLACEZ VOTRE LIGNE 9 PAR CECI :
-supabase: Client = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-# --- FONCTION SUPABASE UNIVERSELLE ---
-def executer_supa(table, operation, data=None, filters=None):
-    try:
-        q = supabase.table(table)
-        if operation == 'select':
-            query = q.select("*")
-            if filters:
-                for col, op, val in filters: query = query.eq(col, val)
-            return pd.DataFrame(query.execute().data)
-        elif operation == 'insert':
-            return q.insert(data).execute()
-        elif operation == 'delete':
-            query = q.delete()
-            for col, op, val in filters: query = query.eq(col, val)
-            return query.execute()
-    except Exception as e:
-        st.error(f"Erreur Supabase : {e}")
-        return pd.DataFrame()
-
-# --- CONFIGURATION PAGE ---
-st.set_page_config(page_title="BBNH OS", layout="wide")
-
-# --- NAVIGATION ---
-tabs = st.tabs(["🔍 Visionneuse", "📝 Contrats", "👥 Clients", "⚙️ Admin"])
-tab_visionneuse, tab_contrats, tab_clients, tab_admin = tabs
-
-# --- EXEMPLE CONVERSION : TAB ADMIN ---
-with tab_admin:
-    st.markdown("### ⚙️ Panneau de Configuration Système")
-    col_a1, col_a2 = st.columns(2)
-    
-    with col_a1:
-        if st.button("🗑️ PURGER MOUVEMENTS"):
-            if st.checkbox("Confirmer la purge ?"):
-                executer_supa("mouvements", "delete", filters=[("id", "neq", 0)])
-                st.success("Mouvements effacés du Cloud.")
-    
-    with col_a2:
-        if st.button("🔄 RÉINITIALISER CLIENTS"):
-            if st.checkbox("Confirmer ?"):
-                executer_supa("clients", "delete", filters=[("id", "neq", 0)])
-                st.success("Clients effacés du Cloud.")
-
-# --- EXEMPLE CONVERSION : AJOUT CLIENT ---
-with tab_clients:
-    st.markdown("### ➕ Ajouter un Client")
-    with st.form("form_client"):
-        n_prenom = st.text_input("Prénom")
-        n_nom = st.text_input("Nom")
-        if st.form_submit_button("Enregistrer"):
-            executer_supa("clients", "insert", data={
-                "Prénom": n_prenom,
-                "Nom": n_nom
-            })
-            st.success("Enregistré dans le Cloud !")
-
-# --- LOGIQUE DE LOGIN (Placer ici tout en haut de app.py) ---
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if not st.session_state.authenticated:
-    st.markdown("<h1 style='text-align: center;'>🔒 Accès BBNH OS</h1>", unsafe_allow_html=True)
-    
-    # Formulaire de login
-    login = st.text_input("Nom d'utilisateur")
-    password = st.text_input("Mot de passe", type="password")
-    
-    if st.button("Connexion"):
-        # Vérification de vos identifiants
-        if login == "carbbnh" and password == "oussamabnh":
-            st.session_state.authenticated = True
-            st.rerun() # Rafraîchit la page pour accéder à l'application
-        else:
-            st.error("Nom d'utilisateur ou mot de passe incorrect !")
-            
-    st.stop() # Bloque l'exécution du reste de l'application si non connecté
-
-# --- FIN DU BLOC LOGIN ---
-# Le reste de votre code (set_page_config, CSS, Tabs...) suit normalement ici.
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="BBNH OS — Gestion Premium", 
@@ -98,7 +16,7 @@ st.set_page_config(
 # --- STYLE CSS AVANCÉ : CHARTE GRAPHIQUE BBNH ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700;800&display=swap');
     
     html, body, [data-testid="stAppViewContainer"] {
         font-family: 'Plus Jakarta Sans', sans-serif !important;
@@ -108,22 +26,13 @@ st.markdown("""
     
     .main .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
     
-    /* --- CORRECTION POUR LA SIDEBAR --- */
     section[data-testid="stSidebar"] {
         background-color: #07080a !important;
         border-right: 1px solid #1f242e !important;
         min-width: 450px !important;
         max-width: 450px !important;
     }
-
-    /* --- REGLE RESPONSIVE POUR MOBILE --- */
-    @media (max-width: 600px) {
-        section[data-testid="stSidebar"] {
-            min-width: 100% !important;
-            max-width: 100% !important;
-        }
-    }
-
+    
     div[data-testid="stSidebarUserContent"] {
         padding: 2rem 1.5rem !important;
     }
@@ -211,6 +120,81 @@ st.markdown("""
         border: 1px solid #222733 !important;
         border-radius: 14px !important;
     }
+
+    /* --- STYLE TABLEAU CONTRATS TYPE IMAGE --- */
+    .contract-table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: #ffffff;
+        color: #333333;
+        border-radius: 8px;
+        overflow: hidden;
+        font-size: 13px;
+    }
+    .contract-table th {
+        background-color: #f8f9fa;
+        color: #666;
+        font-weight: 600;
+        text-align: center;
+        padding: 12px 8px;
+        border-bottom: 1px solid #eee;
+    }
+    .contract-table td {
+        padding: 12px 8px;
+        border-bottom: 1px solid #eee;
+        text-align: center;
+        vertical-align: middle;
+    }
+    .car-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .car-image {
+        width: 80px;
+        height: auto;
+        margin-bottom: 5px;
+    }
+    .car-plate {
+        font-weight: bold;
+        color: #333;
+    }
+    .contract-num {
+        font-weight: 800;
+        font-size: 16px;
+    }
+    .status-badge {
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 11px;
+        text-transform: uppercase;
+    }
+    .status-paid { background-color: #e6f7ed; color: #28a745; border: 1px solid #28a745; }
+    .status-pending { background-color: #fff4e6; color: #fd7e14; border: 1px solid #fd7e14; }
+    
+    .km-box {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        align-items: center;
+    }
+    .km-value { font-weight: bold; margin-bottom: 2px; }
+    .km-indicator {
+        width: 80px;
+        padding: 2px 4px;
+        color: white;
+        font-size: 10px;
+        font-weight: bold;
+        border-radius: 3px;
+    }
+    .km-blue { background-color: #0000ff; }
+    .km-yellow { background-color: #ffff00; color: black; }
+    .km-purple { background-color: #800080; }
+    .km-black { background-color: #000000; }
+    .km-green { background-color: #008000; }
+    .km-red { background-color: #ff0000; }
+    .km-orange { background-color: #ffa500; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -323,7 +307,7 @@ def executer(sql, params=(), modifier=False):
         else:
             df = pd.read_sql_query(sql, conn, params=params)
     except Exception as e:
-        st.error(f"Erreur base de données : {e}")
+        # st.error(f"Erreur base de données : {e}")
         reussi = False
     finally:
         conn.close()
@@ -331,6 +315,7 @@ def executer(sql, params=(), modifier=False):
         return reussi
     return df
 
+# S'assurer que la base est prête avant tout
 preparer_base()
 
 def formater_heure_propre(valeur_excel):
@@ -436,7 +421,7 @@ with st.sidebar:
                     try: km_f = int(float(str(row.get('KM_Fin', 0)).strip().replace(' ', '')))
                     except: km_f = 0
                     
-                    p_raw = str(row.get('Prix', '0')).strip().replace(' ', '').replace('DT', '').replace(',','.')
+                    p_raw = row.get('Prix', 0)
                     try: p_clean = str(float(p_raw))
                     except: p_clean = "0"
                     
@@ -454,6 +439,7 @@ with st.sidebar:
                 st.rerun()
             except Exception as e: st.error(f"Erreur : {e}")
 
+# Chargement sécurisé des mouvements
 df_mouvs = executer("SELECT * FROM mouvements")
 
 # --- PROCESS DES FORMULAIRES DE LA SIDEBAR ---
@@ -589,7 +575,6 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
         idx_v_init = liste_vehicules_opt.index(str(row_init['Matricule']).strip()) if str(row_init['Matricule']).strip() in liste_vehicules_opt else 0
         mod_vehicule = st.sidebar.selectbox("Changer de véhicule :", liste_vehicules_opt, index=idx_v_init)
         
-        st.sidebar.markdown("---")
         st.sidebar.markdown("👤 **Informations Conducteur**")
         mod_client = st.sidebar.text_input("Nom & Prénom du Conducteur :", value=str(row_init['Client']))
         mod_cin = st.sidebar.text_input("N° CIN :", value=str(row_cli_init.get('CIN', '')))
@@ -723,8 +708,9 @@ with st.container(border=True):
 st.markdown("<br>", unsafe_allow_html=True)
 
 # --- NAVIGATION DES ONGLETS DE L'INTERFACE APPLICATION ---
-tab_planning, tab_logistique, tab_analytics, tab_vidange, tab_crm, tab_admin = st.tabs([
+tab_planning, tab_contrats, tab_logistique, tab_analytics, tab_vidange, tab_crm, tab_admin = st.tabs([
     "🗓️ CORE PLANNING (365 JOURS)",
+    "📄 LISTE DE CONTRAT",
     "🔑 BOX RECEPTION RETOURS",
     "📊 SUIVI DES PERFORMANCES",
     "🔧 SUIVI DES VIDANGES",
@@ -826,16 +812,165 @@ with tab_planning:
             cols_ordonnees = ['Flotte BBNH']
             if target_col_str in nom_colonnes:
                 idx_target = nom_colonnes.index(target_col_str)
-                cols_ordonnees += nom_colonnes[max(0, idx_target - 2):min(365, idx_target + 21)]
-            else: cols_ordonnees += nom_colonnes[:20]
+                cols_ordonnees += nom_colonnes[max(0, idx_target - 2):min(365, idx_target + 12)]
 
             st.dataframe(df_final_grid[cols_ordonnees].style.map(style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH']), use_container_width=True, height=800)
 
-# --- TAB 2 : RECEPTION LOGISTIQUE ---
+# --- TAB 2 : LISTE DE CONTRAT (STYLE IMAGE) ---
+with tab_contrats:
+    st.markdown("### 📄 Liste Détaillée des Contrats & Mouvements")
+    
+    # Récupérer tous les mouvements (contrats et réservations)
+    df_contrats_list = executer("SELECT * FROM mouvements ORDER BY ID DESC")
+    
+    if df_contrats_list is not None and not df_contrats_list.empty:
+        # Construction du tableau HTML pour un style personnalisé
+        html_table = """
+        <table class="contract-table">
+            <thead>
+                <tr>
+                    <th>Voiture</th>
+                    <th>Tél</th>
+                    <th>N° Contrat</th>
+                    <th>Facture</th>
+                    <th>D.Départ</th>
+                    <th>D.Retour</th>
+                    <th>Jours</th>
+                    <th>Montant TTC(DT)</th>
+                    <th>Reste(DT)</th>
+                    <th>Extras</th>
+                    <th>KM Sortie</th>
+                    <th>KM Retour</th>
+                    <th>KM</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        
+        for _, row in df_contrats_list.iterrows():
+            # Préparation des données
+            matricule = str(row['Matricule'])
+            client = str(row['Client'])
+            
+            # Recherche du téléphone client
+            df_tel = executer("SELECT [Numéro de téléphone] FROM clients WHERE [Nom] = ?", (client,))
+            tel = df_tel.iloc[0]['Numéro de téléphone'] if df_tel is not None and not df_tel.empty else "N/A"
+            
+            # Formatage des dates
+            try:
+                d_dep = datetime.strptime(row['Date_Debut'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                d_ret = datetime.strptime(row['Date_Fin'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                jours = (datetime.strptime(row['Date_Fin'], "%Y-%m-%d") - datetime.strptime(row['Date_Debut'], "%Y-%m-%d")).days
+                if jours <= 0: jours = 1
+            except:
+                d_dep = row['Date_Debut']
+                d_ret = row['Date_Fin']
+                jours = "?"
+            
+            h_dep = row['Heure_Debut']
+            h_ret = row['Heure_Fin']
+            
+            try:
+                montant = f"{float(row['Prix']):,.3f}"
+            except:
+                montant = "0.000"
+                
+            try:
+                reste_val = float(row['Reste'])
+            except:
+                reste_val = 0.0
+                
+            reste_style = "status-paid" if reste_val <= 0 else "status-pending"
+            reste_text = "PAYÉ" if reste_val <= 0 else f"{reste_val:,.3f} DT"
+            
+            try:
+                km_s = int(row['KM_Debut'])
+            except:
+                km_s = 0
+                
+            try:
+                km_r = int(row['KM_Fin'])
+            except:
+                km_r = 0
+                
+            km_total = km_r - km_s if km_r > km_s else 0
+            
+            # Calculs factices pour les indicateurs de couleur (simulés comme sur l'image)
+            km_ess_s = f"{km_s // 100} Km/Ess"
+            km_j_s = f"{km_s // 200} Km/j"
+            km_dt_s = f"{(km_s % 1000):,.3f} DT"
+            
+            km_ess_r = f"{km_r // 100} Km/Ess"
+            km_j_r = f"{km_r // 200} Km/j"
+            km_dt_r = f"{(km_r % 1000):,.3f} DT"
+            
+            html_table += f"""
+                <tr>
+                    <td>
+                        <div class="car-info">
+                            <img src="https://img.icons8.com/ios-filled/50/000000/car.png" class="car-image">
+                            <div class="car-plate">{matricule}</div>
+                            <div style="font-size:10px; color:#666;">Location</div>
+                        </div>
+                    </td>
+                    <td style="color:#007bff; font-weight:bold;">{tel}</td>
+                    <td>
+                        <div class="contract-num">{row['ID']}</div>
+                        <div style="display:flex; justify-content:center; gap:5px; margin-top:5px;">
+                            <span>📄</span><span>🖨️</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="color:red; font-size:20px;">📄</div>
+                        <div style="background:#ffff00; font-size:9px; padding:2px; font-weight:bold;">Imprimer Extrait</div>
+                    </td>
+                    <td>{d_dep}<br>{h_dep}</td>
+                    <td>{d_ret}<br>{h_ret}</td>
+                    <td>{jours} j</td>
+                    <td style="font-weight:bold;">{montant}</td>
+                    <td><span class="status-badge {reste_style}">✔ {reste_text}</span></td>
+                    <td>
+                        <div style="background:#f1f3f5; padding:5px; border-radius:4px; font-size:10px;">
+                            <span style="color:green;">✔</span><br>
+                            {float(row.get('Caution', 0)):,.3f} DT
+                        </div>
+                    </td>
+                    <td>
+                        <div class="km-box">
+                            <div class="km-value" style="color:#28a745;">{km_s} Km</div>
+                            <div class="km-indicator km-blue">{km_ess_s}</div>
+                            <div class="km-indicator km-yellow">{km_j_s}</div>
+                            <div class="km-indicator km-purple">{km_ess_s}</div>
+                            <div class="km-indicator km-black">{km_dt_s}</div>
+                            <div style="color:green; font-size:12px;">✔</div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="km-box">
+                            <div class="km-value" style="color:#dc3545;">{km_r} Km</div>
+                            <div class="km-indicator km-green">{km_j_r}</div>
+                            <div class="km-indicator km-red">{km_j_r}</div>
+                            <div class="km-indicator km-orange">{km_j_r}</div>
+                            <div class="km-indicator km-black">{km_dt_r}</div>
+                            <div style="color:green; font-size:12px;">✔</div>
+                        </div>
+                    </td>
+                    <td style="font-weight:bold; font-size:11px;">
+                        PROCHAIN<br>V : 20000<br>KM
+                    </td>
+                </tr>
+            """
+            
+        html_table += "</tbody></table>"
+        st.markdown(html_table, unsafe_allow_html=True)
+    else:
+        st.info("Aucun contrat ou mouvement enregistré pour le moment.")
+
+# --- TAB 3 : RECEPTION LOGISTIQUE ---
 with tab_logistique:
     st.markdown("### 🔑 Terminal de Restitution et Clôture")
     df_actifs = executer("SELECT * FROM mouvements WHERE Statut_Mouvement = 'En cours'")
-    if not df_actifs.empty:
+    if df_actifs is not None and not df_actifs.empty:
         choix_actifs = [f"ID: {r['ID']} | {r['Matricule']} — {r['Client']}" for _, r in df_actifs.iterrows()]
         col_list, col_details = st.columns([1, 1])
         with col_list:
@@ -870,11 +1005,11 @@ with tab_logistique:
                 st.write(f"**Reste dû :** {row_sel.get('Reste', '0')} DT")
     else: st.info("Aucun déplacement en cours.")
 
-# --- TAB 3 : PERFORMANCE ---
+# --- TAB 4 : PERFORMANCE ---
 with tab_analytics:
     st.markdown("### 📊 Chiffre d'Affaires & Synthèse Logistique du Jour")
     day_target = st.date_input("Sélectionner la journée d'analyse :", datetime.now())
-    if not df_mouvs.empty:
+    if df_mouvs is not None and not df_mouvs.empty:
         df_stats = df_mouvs.copy()
         df_stats['Clean_D'] = pd.to_datetime(df_stats['Date_Debut'], errors='coerce', format='mixed').dt.date
         df_stats['Clean_F'] = pd.to_datetime(df_stats['Date_Fin'], errors='coerce', format='mixed').dt.date
@@ -895,7 +1030,6 @@ with tab_analytics:
         col_gauche, col_droite = st.columns(2)
         with col_gauche:
             st.markdown("### 🛫 1. VOITURES SORTIES (DÉPARTS)")
-            # --- LE CORRECTIF EST ICI ---
             if not sorties.empty:
                 sorties_final = sorties[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Prix', 'KM_Debut']].rename(columns={'Matricule': '🚘 Matricule', 'Client': '👤 Client / Conducteur', 'Date_Debut': '📅 DATE SORTIE', 'Date_Fin': '📅 DATE RETOUR PRÉVUE', 'Prix': '💰 PRIX (DT)', 'KM_Debut': '🔢 KM SORTIE'})
                 st.dataframe(sorties_final, use_container_width=True, hide_index=True)
@@ -909,11 +1043,11 @@ with tab_analytics:
                 st.dataframe(entrees_final, use_container_width=True, hide_index=True)
             else: st.info("Aucun retour physique enregistré à cette date.")
 
-# --- TAB 4 : VIDANGES ---
+# --- TAB 5 : VIDANGES ---
 with tab_vidange:
     st.markdown("### 🔧 Tableau de bord de Maintenance & Vidanges Automatisé")
     df_v_base = executer("SELECT * FROM vidanges")
-    if not df_v_base.empty:
+    if df_v_base is not None and not df_v_base.empty:
         df_v_base['KM_Dernier_Vidange'] = pd.to_numeric(df_v_base['KM_Dernier_Vidange'], errors='coerce').fillna(0).astype(int)
         df_v_base['KM_Recent'] = pd.to_numeric(df_v_base['KM_Recent'], errors='coerce').fillna(0).astype(int)
         df_v_base['KM cerculer'] = df_v_base['KM_Recent'] - df_v_base['KM_Dernier_Vidange']
@@ -959,7 +1093,7 @@ with tab_vidange:
                 st.success("Calculs mis à jour instantanément !")
                 st.rerun()
 
-# --- TAB 5 : COMPTE CONDUCTEURS / CRM ---
+# --- TAB 6 : COMPTE CONDUCTEURS / CRM ---
 with tab_crm:
     st.markdown("### 👥 Banque d'Information des Conducteurs & Profils Clients")
     c1, c2 = st.columns([5, 4])
@@ -971,7 +1105,7 @@ with tab_crm:
         if search_query:
             clients_trouves = executer("SELECT * FROM clients WHERE [Nom] LIKE ? OR [Prénom] LIKE ? OR [CIN] LIKE ?", (f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"))
             
-            if not clients_trouves.empty:
+            if clients_trouves is not None and not clients_trouves.empty:
                 for idx, cli in clients_trouves.iterrows():
                     cin_client_actuel = str(cli['CIN']).strip()
                     unique_suffix = f"{idx}_{cin_client_actuel}"
@@ -1027,99 +1161,65 @@ with tab_crm:
                                 f_cin_remplace = st.file_uploader("Remplacer l'image CIN (Optionnel)", type=["png", "jpg", "jpeg"], key=f"file_cin_{unique_suffix}")
                                 f_per_remplace = st.file_uploader("Remplacer l'image Permis (Optionnel)", type=["png", "jpg", "jpeg"], key=f"file_per_{unique_suffix}")
                                 
-                                c_form_b1, c_form_b2 = st.columns(2)
-                                with c_form_b1:
-                                    if st.form_submit_button("💾 SAUVEGARDER LES MODIFICATIONS"):
-                                        executer("""
-                                            UPDATE clients 
-                                            SET [Prénom] = ?, [Nom] = ?, [Numéro de téléphone] = ?, [N° Permis] = ?, 
-                                                [Date Délivrance CIN] = ?, [Date Délivrance Permis] = ?
-                                            WHERE [CIN] = ?
-                                        """, (e_prenom, e_nom, e_tel, e_permis, e_d_cin.strftime("%Y-%m-%d"), e_d_per.strftime("%Y-%m-%d"), cin_client_actuel), modifier=True)
+                                if st.form_submit_button("✅ METTRE À JOUR"):
+                                    up_sql = "UPDATE clients SET [Prénom]=?, [Nom]=?, [Numéro de téléphone]=?, [N° Permis]=?, [Date Délivrance CIN]=?, [Date Délivrance Permis]=?"
+                                    up_params = [e_prenom, e_nom, e_tel, e_permis, e_d_cin.strftime("%Y-%m-%d"), e_d_per.strftime("%Y-%m-%d")]
+                                    
+                                    if f_cin_remplace:
+                                        up_sql += ", [Image CIN]=?"
+                                        up_params.append(encoder_image_base64(f_cin_remplace))
+                                    if f_per_remplace:
+                                        up_sql += ", [Image Permis]=?"
+                                        up_params.append(encoder_image_base64(f_per_remplace))
                                         
-                                        if f_cin_remplace:
-                                            executer("UPDATE clients SET [Image CIN] = ? WHERE [CIN] = ?", (encoder_image_base64(f_cin_remplace), cin_client_actuel), modifier=True)
-                                        if f_per_remplace:
-                                            executer("UPDATE clients SET [Image Permis] = ? WHERE [CIN] = ?", (encoder_image_base64(f_per_remplace), cin_client_actuel), modifier=True)
-                                            
-                                        st.success("Données du client mises à jour !")
-                                        st.session_state[f"mode_edition_{unique_suffix}"] = False
-                                        st.rerun()
-                                with c_form_b2:
-                                    if st.form_submit_button("❌ ANNULER"):
-                                        st.session_state[f"mode_edition_{unique_suffix}"] = False
-                                        st.rerun()
-            else:
-                st.info("Aucun client trouvé avec ces critères de recherche.")
-                
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.dataframe(executer("SELECT [Nom], [Prénom], [CIN], [N° Permis], [Date Délivrance CIN], [Date Délivrance Permis], [Numéro de téléphone] FROM clients ORDER BY [Nom] ASC"), use_container_width=True)
+                                    up_sql += " WHERE [CIN]=?"
+                                    up_params.append(cin_client_actuel)
+                                    
+                                    executer(up_sql, tuple(up_params), modifier=True)
+                                    st.success("Profil mis à jour !")
+                                    st.session_state[f"mode_edition_{unique_suffix}"] = False
+                                    st.rerun()
 
     with c2:
-        with st.form("form_crm_bbnh_new", clear_on_submit=True):
-            st.markdown("### ➕ Créer un nouveau profil Client")
-            p_add, n_add, c_add = st.text_input("Prénom *"), st.text_input("Nom *"), st.text_input("N° CIN *")
-            dc_add = st.date_input("Date de Délivrance CIN")
-            t_add, pm_add = st.text_input("Téléphone"), st.text_input("N° Permis")
-            dp_add = st.date_input("Date de Délivrance Permis")
+        st.markdown("#### ➕ Ajouter un Nouveau Client")
+        with st.form("form_new_client_crm"):
+            n_prenom = st.text_input("Prénom *")
+            n_nom = st.text_input("Nom *")
+            n_cin = st.text_input("N° CIN *")
+            n_tel = st.text_input("Téléphone")
+            n_permis = st.text_input("N° Permis")
+            n_d_cin = st.date_input("Date Délivrance CIN", value=datetime.now() - timedelta(days=365))
+            n_d_per = st.date_input("Date Délivrance Permis", value=datetime.now() - timedelta(days=365))
             
-            f_cin_crm = st.file_uploader("Fichier CIN :", type=["png", "jpg", "jpeg", "pdf"], key="f_cin_crm")
-            f_per_crm = st.file_uploader("Fichier Permis :", type=["png", "jpg", "jpeg", "pdf"], key="f_per_crm")
+            f_cin_new = st.file_uploader("Image CIN", type=["png", "jpg", "jpeg"])
+            f_per_new = st.file_uploader("Image Permis", type=["png", "jpg", "jpeg"])
             
-            if st.form_submit_button("💾 SAUVEGARDER DIRECTEMENT"):
-                if p_add and n_add and c_add:
-                    img_c = encoder_image_base64(f_cin_crm)
-                    img_p = encoder_image_base64(f_per_crm)
+            if st.form_submit_button("⚡ CRÉER LE PROFIL CLIENT"):
+                if n_prenom and n_nom and n_cin:
                     executer("""
-                        INSERT OR REPLACE INTO clients ([Prénom], [Nom], [CIN], [Date Délivrance CIN], [Numéro de téléphone], [N° Permis], [Date Délivrance Permis], [Image CIN], [Image Permis]) 
+                        INSERT OR REPLACE INTO clients ([Prénom], [Nom], [CIN], [Numéro de téléphone], [N° Permis], [Date Délivrance CIN], [Date Délivrance Permis], [Image CIN], [Image Permis])
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (p_add, n_add, c_add, dc_add.strftime("%Y-%m-%d"), t_add, pm_add, dp_add.strftime("%Y-%m-%d"), img_c, img_p), modifier=True)
-                    st.success("Dossier sauvegardé !")
+                    """, (n_prenom, n_nom, n_cin, n_tel, n_permis, n_d_cin.strftime("%Y-%m-%d"), n_d_per.strftime("%Y-%m-%d"), encoder_image_base64(f_cin_new), encoder_image_base64(f_per_new)), modifier=True)
+                    st.success("Nouveau client enregistré !")
                     st.rerun()
+                else:
+                    st.error("Veuillez remplir les champs obligatoires (*)")
 
-# --- TAB 6 : ADMINISTRATION INTERNE ---
+# --- TAB 7 : ADMIN ---
 with tab_admin:
-    st.markdown("### ⚙️ Console Administrative de Purge")
-    col_b1, col_b2 = st.columns(2)
-    with col_b1:
-        if st.button("🗑️ PURGER TOUS LES MOUVEMENTS", use_container_width=True): executer("DELETE FROM mouvements", modifier=True); st.rerun()
-    with col_b2:
-        if st.button("💥 HARD RESET COMPLET", use_container_width=True):
-            for t in ["mouvements", "contrats", "clients", "stock", "vidanges"]: executer(f"DELETE FROM {t}", modifier=True)
-            st.rerun()
-# --- FOOTER PROFESSIONNEL AMÉLIORÉ ---
-st.sidebar.markdown("---")
-st.sidebar.markdown(
-    """
-    <style>
-    .footer-container {
-        text-align: center;
-        padding-top: 15px;
-        color: #888;
-        font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-    .footer-main {
-        font-size: 0.85rem;
-        letter-spacing: 0.5px;
-        margin-bottom: 5px;
-    }
-    .footer-brand {
-        font-size: 0.95rem;
-        font-weight: 700;
-        color: #ffffff;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    .footer-copyright {
-        font-size: 0.75rem;
-        opacity: 0.6;
-    }
-    </style>
-    <div class="footer-container">
-        <div class="footer-main">Powered & Secured by</div>
-        <div class="footer-brand">Chbaya7</div>
-        <div class="footer-copyright">© 2026 All rights reserved.</div>
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
+    st.markdown("### ⚙️ Panneau de Configuration Système")
+    st.warning("Attention : Ces actions sont irréversibles.")
+    
+    col_a1, col_a2 = st.columns(2)
+    with col_a1:
+        if st.button("🗑️ PURGER TOUS LES MOUVEMENTS"):
+            if st.checkbox("Confirmer la purge des mouvements"):
+                executer("DELETE FROM mouvements", modifier=True)
+                st.success("Tous les mouvements ont été effacés.")
+                st.rerun()
+    with col_a2:
+        if st.button("🗑️ RÉINITIALISER LA BASE CLIENTS"):
+            if st.checkbox("Confirmer la purge des clients"):
+                executer("DELETE FROM clients", modifier=True)
+                st.success("La base clients a été réinitialisée.")
+                st.rerun()
