@@ -1,7 +1,3 @@
-from supabase import create_client, Client
-import streamlit as st
-import pandas as pd
-
 import streamlit as st
 import pandas as pd
 import sqlite3
