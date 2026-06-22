@@ -1,80 +1,10 @@
 import streamlit as st
 import pandas as pd
-from supabase import create_client, Client
+import sqlite3
+import os
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta, time
 
-# --- CONFIGURATION ---
-st.set_page_config(page_title="BBNH OS", layout="wide", page_icon="🏎️")
-supabase: Client = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-
-# --- FONCTIONS SUPABASE ---
-def executer_supa(table, method, data=None, filters=None):
-    try:
-        q = supabase.table(table)
-        if method == "select":
-            query = q.select("*")
-            if filters:
-                for col, op, val in filters: query = query.eq(col, val)
-            return pd.DataFrame(query.execute().data)
-        elif method == "insert": return q.insert(data).execute()
-        elif method == "delete":
-            query = q.delete()
-            for col, op, val in filters: query = query.eq(col, val)
-            return query.execute()
-    except Exception as e:
-        st.error(f"Erreur DB : {e}")
-        return pd.DataFrame()
-
-# --- NAVIGATION ---
-tabs = st.tabs(["🔍 Visionneuse", "📝 Contrats", "👥 Clients", "⚙️ Admin"])
-tab_visionneuse, tab_contrats, tab_clients, tab_admin = tabs
-
-# --- TAB CLIENTS (Formulaire converti) ---
-with tab_clients:
-    st.header("👥 Gestion des Clients")
-    with st.form("ajout_client"):
-        n_prenom = st.text_input("Prénom")
-        n_nom = st.text_input("Nom")
-        n_cin = st.text_input("CIN")
-        n_tel = st.text_input("Téléphone")
-        n_permis = st.text_input("N° Permis")
-        d_cin = st.date_input("Date Délivrance CIN")
-        
-        if st.form_submit_button("Enregistrer"):
-            executer_supa("clients", "insert", data={
-                "Prénom": n_prenom,
-                "Nom": n_nom,
-                "CIN": n_cin,
-                "Téléphone": n_tel,
-                "Permis": n_permis,
-                "Date_CIN": d_cin.strftime("%Y-%m-%d")
-            })
-            st.success("Client sauvegardé dans le Cloud !")
-
-# --- TAB ADMIN (Gestion persistante) ---
-with tab_admin:
-    st.header("⚙️ Administration Cloud")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🗑️ PURGER MOUVEMENTS"):
-            if st.checkbox("Confirmer la suppression ?"):
-                executer_supa("mouvements", "delete", filters=[("id", "gt", 0)])
-                st.success("Mouvements purgés.")
-    with col2:
-        if st.button("🔄 RÉINITIALISER CLIENTS"):
-            if st.checkbox("Confirmer ?"):
-                executer_supa("clients", "delete", filters=[("id", "gt", 0)])
-                st.success("Base clients réinitialisée.")
-
-# --- VISIONNEUSE ---
-with tab_visionneuse:
-    st.header("🔍 Visionneuse")
-    df = executer_supa("clients", "select")
-    if not df.empty:
-        st.dataframe(df)
-    else:
-        st.info("Aucune donnée disponible.")
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="BBNH OS — Gestion Premium", 
