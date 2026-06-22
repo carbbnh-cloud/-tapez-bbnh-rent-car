@@ -1,11 +1,15 @@
 import streamlit as st
 import pandas as pd
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import os
-import base64
-from datetime import datetime, timedelta, time
+from supabase import create_client, Client
+import streamlit as st
+import pandas as pd
 
+# Connexion sécurisée
+supabase: Client = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
+def executer_supa(table, operation, data=None, filters=None):
+    # (Utilisez la fonction que nous avons préparée ensemble plus haut)
+    ...
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="BBNH OS — Gestion Premium (Supabase)",
@@ -111,7 +115,7 @@ st.markdown("""
 
 
 # =========================================================================
-# CONNEXION SUPABASE (PostgreSQL via psycopg2)
+# CONNEXION SUPABASE (PostgreSQL via )
 # =========================================================================
 # - DSN depuis st.secrets["supabase"]["connection_string"] OU env SUPABASE_DB_URL
 # - sslmode=require ajouté automatiquement (Supabase l'exige)
@@ -119,7 +123,7 @@ st.markdown("""
 # =========================================================================
 
 @st.cache_resource
-def get_db_connection():
+def ():
     try:
         dsn = st.secrets["supabase"]["connection_string"]
     except Exception:
@@ -141,7 +145,7 @@ def get_db_connection():
         sep = "&" if "?" in dsn else "?"
         dsn = f"{dsn}{sep}sslmode=require"
 
-    return psycopg2.connect(dsn, cursor_factory=RealDictCursor)
+    return .connect(dsn, cursor_factory=RealDictCursor)
 
 
 def ping_connection(_conn):
@@ -155,8 +159,8 @@ def ping_connection(_conn):
             _conn.close()
         except Exception:
             pass
-        get_db_connection.clear()
-        return get_db_connection()
+        .clear()
+        return ()
 
 
 # --- ENCODAGE DES IMAGES EN BASE64 ---
@@ -183,10 +187,10 @@ def _col_exists(cur, table_name, column_name):
 
 # --- CONFIGURATION ET INTÉGRITÉ DE LA BDD (PostgreSQL) ---
 @st.cache_resource
-def preparer_base():
+def :
     """Crée les tables et applique les migrations de colonnes. Mis en cache
     pour ne s'exécuter qu'une fois par session Streamlit."""
-    conn = get_db_connection()
+    conn = ()
     with conn.cursor() as cur:
         # Table clients
         cur.execute("""
@@ -302,8 +306,8 @@ def preparer_base():
 def executer(sql, params=(), modifier=False):
     """Wrapper uniforme pour SELECT/INSERT/UPDATE/DELETE sur Postgres.
     Accepte la même signature que la version SQLite d'origine."""
-    preparer_base()
-    conn = ping_connection(get_db_connection())
+    
+    conn = ping_connection(())
     df = pd.DataFrame()
     reussi = True
     try:
@@ -349,7 +353,7 @@ def bulk_replace_table(_conn, df, table_name):
 
 
 # S'assurer que la base est prête avant tout
-preparer_base()
+
 
 
 # =========================================================================
@@ -454,7 +458,7 @@ with st.sidebar:
             try:
                 df_cli = pd.read_excel(f_clients, sheet_name='Base de Données', skiprows=1)
                 df_cli = df_cli.loc[:, ~df_cli.columns.str.contains('^Unnamed')]
-                conn = get_db_connection()
+                conn = ()
                 bulk_replace_table(conn, df_cli, "clients")
                 st.success("Données clients synchronisées !")
                 st.rerun()
@@ -485,7 +489,7 @@ with st.sidebar:
                     elif "lieu" in c_clean: mapping[col] = "Lieu_Reception"
 
                 df_mouv_raw = df_mouv_raw.rename(columns=mapping)
-                conn = get_db_connection()
+                conn = ()
                 bulk_replace_table(conn, df_stock, "stock")
                 with conn.cursor() as cur:
                     cur.execute('TRUNCATE TABLE mouvements RESTART IDENTITY')
