@@ -1,9 +1,62 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
-import os
+from supabase import create_client, Client
+from datetime import datetime
 import base64
-from datetime import datetime, timedelta, time
+
+# --- CONFIGURATION ---
+supabase: Client = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
+def executer_supa(table, method, data=None, filters=None):
+    try:
+        q = supabase.table(table)
+        if method == "select":
+            query = q.select("*")
+            if filters:
+                for col, op, val in filters: query = query.eq(col, val)
+            return pd.DataFrame(query.execute().data)
+        elif method == "insert": return q.insert(data).execute()
+        elif method == "delete":
+            query = q.delete()
+            for col, op, val in filters: query = query.eq(col, val)
+            return query.execute()
+    except Exception as e:
+        st.error(f"Erreur Supabase : {e}")
+        return pd.DataFrame()
+
+# --- INTERFACE (Exemple de conversion TAB 7 ADMIN) ---
+# Remplacez votre ancien bloc TAB 7 par celui-ci :
+with tab_admin:
+    st.markdown("### ⚙️ Panneau de Configuration Système (Cloud)")
+    st.warning("Actions irréversibles sur la base de données distante.")
+    
+    col_a1, col_a2 = st.columns(2)
+    with col_a1:
+        if st.button("🗑️ PURGER TOUS LES MOUVEMENTS"):
+            if st.checkbox("Confirmer la purge ?"):
+                # Suppression via Supabase
+                executer_supa("mouvements", "delete", filters=[("id", "neq", 0)])
+                st.success("Données purgées du Cloud.")
+    
+    with col_a2:
+        if st.button("🗑️ RÉINITIALISER BASE CLIENTS"):
+            if st.checkbox("Confirmer ?"):
+                executer_supa("clients", "delete", filters=[("id", "neq", 0)])
+                st.success("Base clients réinitialisée.")
+
+# --- CONVERSION FORMULAIRE CLIENT ---
+# Au lieu de votre SQL, utilisez ceci :
+if st.button("Enregistrer le client"):
+    if n_prenom and n_nom:
+        executer_supa("clients", "insert", data={
+            "Prénom": n_prenom,
+            "Nom": n_nom,
+            "CIN": n_cin,
+            "Numéro_de_téléphone": n_tel,
+            "Date_Délivrance_CIN": n_d_cin.strftime("%Y-%m-%d")
+        })
+        st.success("Client enregistré dans Supabase !")
+        st.rerun()
 
 # --- LOGIQUE DE LOGIN (Placer ici tout en haut de app.py) ---
 if "authenticated" not in st.session_state:
