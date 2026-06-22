@@ -1,9 +1,8 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
-import os
+from supabase import create_client, Client
 import base64
-from datetime import datetime, timedelta, time
+from datetime import datetime
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
