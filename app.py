@@ -21,10 +21,10 @@ st.set_page_config(
 # --- STYLE CSS AVANCÉ : CHARTE GRAPHIQUE BBNH ---
 st.markdown("""
     <style>
-    @import url(\'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap\');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
     
     html, body, [data-testid="stAppViewContainer"] {
-        font-family: \'Plus Jakarta Sans\', sans-serif !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
         background-color: #0f1115 !important;
         color: #f3f4f6 !important;
     }
@@ -114,6 +114,7 @@ st.markdown("""
         font-weight: 700 !important;
         letter-spacing: 0.5px;
         font-size: 14px !important;
+        transition: all 0.2s ease;
     }
     div.stButton > button:hover { 
         transform: translateY(-1px); 
@@ -202,7 +203,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- FONCTION D\'ENCODAGE DES IMAGES EN TEXTE (BASE64) ---
+# --- FONCTION D'ENCODAGE DES IMAGES EN TEXTE (BASE64) ---
 def encoder_image_base64(file_buffer):
     if file_buffer is None:
         return ""
@@ -211,7 +212,7 @@ def encoder_image_base64(file_buffer):
     except Exception as e:
         return ""
 
-# --- FONCTION D\'EXECUTION DES REQUETES SUPABASE ---
+# --- FONCTION D'EXECUTION DES REQUETES SUPABASE ---
 def executer(table_name, method, data=None, filters=None, select_cols="*", upsert_on=None):
     try:
         if method == "insert":
@@ -252,27 +253,19 @@ def executer(table_name, method, data=None, filters=None, select_cols="*", upser
         st.error(f"Erreur Supabase: {e}")
         return False
 
-# --- FONCTION DE PREPARATION DE LA BASE DE DONNEES (CREATION DES TABLES SI ELLES N\'EXISTENT PAS) ---
+# --- FONCTION DE PREPARATION DE LA BASE DE DONNEES ---
 def preparer_base():
-    # Supabase gère la création des tables via son interface ou des migrations.
-    # Ici, nous nous assurons que les colonnes nécessaires existent ou sont ajoutées.
-    # Pour un déploiement réel, ces tables devraient être créées dans Supabase UI ou via des migrations.
-    # Nous allons simuler la vérification et l\'ajout de colonnes si nécessaire.
-    
-    # Clients table
-    # Supabase ne permet pas d\'ajouter des colonnes avec ALTER TABLE directement depuis le client Python de cette manière.
-    # Il est préférable de gérer le schéma via l\'interface Supabase ou des migrations.
-    # Pour cette conversion, nous allons supposer que les tables existent avec le schéma complet.
+    # Supabase gère le schéma via son interface.
     pass
 
-# Initialisation de la base de données (appelée une fois au démarrage de l\'application)
+# Initialisation
 preparer_base()
 
 def formater_heure_propre(valeur_excel):
     if pd.isna(valeur_excel):
-        return \'00:00\'
+        return '00:00'
     if isinstance(valeur_excel, (datetime, time)):
-        return valeur_excel.strftime(\'%H:%M\')
+        return valeur_excel.strftime('%H:%M')
     val_str = str(valeur_excel).strip()
     if " " in val_str:
         try: val_str = val_str.split(" ")[1]
@@ -280,7 +273,7 @@ def formater_heure_propre(valeur_excel):
     parts = val_str.split(":")
     if len(parts) >= 2:
         return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
-    return \'00:00\'
+    return '00:00'
 
 # Remplacement des appels executer existants
 df_voitures = executer("stock", "select")
@@ -294,7 +287,6 @@ for _, car in df_voitures.iterrows():
     mat = str(car.get('Matricule', '')).strip()
     marq = str(car.get('Marque', '')).upper()
     if mat and mat.lower() != 'nan':
-        # Pour l\'upsert, nous devons spécifier les colonnes à utiliser pour le conflit
         executer("vidanges", "upsert", 
                  data={
                      "Matricule": mat, 
@@ -316,10 +308,10 @@ with st.sidebar:
         st.image(logo_path, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.markdown("<h1 style=\'text-align: center; color: #e60000; font-weight:800; margin-bottom:0;\'>BBNH</h1>", unsafe_allow_html=True)
-        st.markdown("<p style=\'text-align: center; opacity: 0.5; font-size:13px; letter-spacing:4px; margin-bottom:25px;\'>RENT A CAR</p>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #e60000; font-weight:800; margin-bottom:0;'>BBNH</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; opacity: 0.5; font-size:13px; letter-spacing:4px; margin-bottom:25px;'>RENT A CAR</p>", unsafe_allow_html=True)
     
-    st.markdown("<h3 style=\'margin-bottom:10px;\'>🕹️ CONSOLE D\'ACTION :</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='margin-bottom:10px;'>🕹️ CONSOLE D'ACTION :</h3>", unsafe_allow_html=True)
     menu_action = st.radio("", [
         "🔍 Mode Visionneuse", 
         "📝 Nouveau Contrat / Réservation", 
@@ -336,26 +328,18 @@ with st.sidebar:
             try:
                 df_cli = pd.read_excel(f_clients, sheet_name='Base de Données', skiprows=1)
                 df_cli = df_cli.loc[:, ~df_cli.columns.str.contains('^Unnamed')]
-                # Conversion des noms de colonnes pour correspondre à Supabase si nécessaire
-                # Par exemple, '[ID Client]' -> 'ID_Client'
                 df_cli.columns = [col.replace(' ', '_').replace('[', '').replace(']', '') for col in df_cli.columns]
                 
-                # Pour Supabase, nous allons utiliser upsert pour gérer les doublons basés sur CIN
-                # Assurez-vous que la table 'clients' dans Supabase a une contrainte d\'unicité sur 'CIN'
                 for index, row in df_cli.iterrows():
                     client_data = row.to_dict()
-                    # Convertir les dates en format string si elles ne le sont pas déjà
                     for date_col in ['Date_Délivrance_CIN', 'Date_Délivrance_Permis']:
                         if date_col in client_data and pd.notna(client_data[date_col]):
                             client_data[date_col] = pd.to_datetime(client_data[date_col]).strftime("%Y-%m-%d")
                         else:
-                            client_data[date_col] = None # Ou une valeur par défaut appropriée
+                            client_data[date_col] = None
                     
-                    # Gérer les images si elles étaient dans le fichier Excel (peu probable pour l\'instant)
-                    # Pour l\'instant, nous laissons les champs Image CIN et Image Permis vides ou nulls si non présents
                     client_data['Image_CIN'] = client_data.get('Image_CIN', '')
                     client_data['Image_Permis'] = client_data.get('Image_Permis', '')
-
                     executer("clients", "upsert", data=client_data, upsert_on="CIN")
                 
                 st.success("Données clients synchronisées !")
@@ -370,39 +354,15 @@ with st.sidebar:
                 df_stock = df_stock.loc[:, ~df_stock.columns.str.contains('^Unnamed')]
                 df_mouv_raw = df_mouv_raw.loc[:, ~df_mouv_raw.columns.str.contains('^Unnamed')]
                 
-                # Nettoyage et conversion des colonnes pour df_stock
                 df_stock.columns = [col.replace(' ', '_').replace('[', '').replace(']', '') for col in df_stock.columns]
                 for index, row in df_stock.iterrows():
                     stock_data = row.to_dict()
                     executer("stock", "upsert", data=stock_data, upsert_on="Matricule")
 
-                # Nettoyage et conversion des colonnes pour df_mouv_raw
                 df_mouv_raw.columns = [col.replace(' ', '_').replace('[', '').replace(']', '') for col in df_mouv_raw.columns]
                 
-                # Renommer les colonnes pour correspondre au schéma Supabase si nécessaire
-                df_mouv_raw = df_mouv_raw.rename(columns={
-                    'Type_Statut': 'Type_Statut',
-                    'Date_Debut': 'Date_Debut',
-                    'Heure_Debut': 'Heure_Debut',
-                    'Date_Fin': 'Date_Fin',
-                    'Heure_Fin': 'Heure_Fin',
-                    'Client': 'Client',
-                    'Prix': 'Prix',
-                    'CHEV': 'CHEV',
-                    'Statut_Mouvement': 'Statut_Mouvement',
-                    'Caution': 'Caution',
-                    'Reste': 'Reste',
-                    'Lieu_Reception': 'Lieu_Reception',
-                    'No_Vol': 'No_Vol',
-                    'Info_Note': 'Info_Note',
-                    'KM_Debut': 'KM_Debut',
-                    'KM_Fin': 'KM_Fin'
-                })
-
-                # Traitement des mouvements
                 for index, row in df_mouv_raw.iterrows():
                     mouvement_data = row.to_dict()
-                    # Convertir les dates et heures en format string
                     for date_col in ['Date_Debut', 'Date_Fin']:
                         if date_col in mouvement_data and pd.notna(mouvement_data[date_col]):
                             mouvement_data[date_col] = pd.to_datetime(mouvement_data[date_col]).strftime("%Y-%m-%d")
@@ -414,15 +374,12 @@ with st.sidebar:
                         else:
                             mouvement_data[time_col] = '00:00'
                     
-                    # Assurez-vous que les valeurs numériques sont du bon type
                     for num_col in ['Prix', 'CHEV', 'Caution', 'Reste', 'KM_Debut', 'KM_Fin']:
                         if num_col in mouvement_data and pd.notna(mouvement_data[num_col]):
-                            mouvement_data[num_col] = str(mouvement_data[num_col]) # Supabase peut stocker en TEXT ou NUMBER
+                            mouvement_data[num_col] = str(mouvement_data[num_col])
                         else:
                             mouvement_data[num_col] = '0'
 
-                    # Supabase gère l\'auto-incrément pour l\'ID, donc nous ne l\'incluons pas dans l\'insert
-                    # Si vous avez un ID unique dans votre Excel que vous voulez conserver, utilisez upsert avec cet ID
                     executer("mouvements", "insert", data=mouvement_data)
 
                 st.success("Données de stock et mouvements synchronisées !")
@@ -459,13 +416,11 @@ if menu_action == "🔍 Mode Visionneuse":
         df_voitures_valides = executer("stock", "select", filters=[["Matricule", "not_in", ["nan"]]]) if not df_voitures.empty else pd.DataFrame()
 
         if not df_voitures_valides.empty:
-            # Récupérer tous les mouvements pour le planning
             df_mouvements = executer("mouvements", "select")
             if not df_mouvements.empty:
                 df_mouvements['Date_Debut'] = pd.to_datetime(df_mouvements['Date_Debut'])
                 df_mouvements['Date_Fin'] = pd.to_datetime(df_mouvements['Date_Fin'])
 
-            # Construction de la grille de planning
             planning_data = []
             for _, car in df_voitures_valides.iterrows():
                 matricule = car['Matricule']
@@ -473,14 +428,13 @@ if menu_action == "🔍 Mode Visionneuse":
                 for day in array_jours:
                     status = "Libre"
                     if not df_mouvements.empty:
-                        # Vérifier si la voiture est en mouvement ce jour-là
                         mouvements_jour = df_mouvements[
                             (df_mouvements['Matricule'] == matricule) &
                             (df_mouvements['Date_Debut'] <= day) &
                             (df_mouvements['Date_Fin'] >= day)
                         ]
                         if not mouvements_jour.empty:
-                            status = mouvements_jour.iloc[0]['Type_Statut'] # Ou un autre statut pertinent
+                            status = mouvements_jour.iloc[0]['Type_Statut']
                     row_data[day.strftime("%d/%m")] = status
                 planning_data.append(row_data)
             
@@ -497,18 +451,14 @@ if menu_action == "🔍 Mode Visionneuse":
 
     with tab_logistique:
         st.markdown("### 🔑 Box Réception Retours")
-        # Logique pour la réception des retours
-        # Ceci nécessitera des requêtes SELECT et UPDATE sur la table 'mouvements'
         df_mouvements_en_cours = executer("mouvements", "select", filters=[["Statut_Mouvement", "eq", "En cours"]])
         if not df_mouvements_en_cours.empty:
             st.dataframe(df_mouvements_en_cours, use_container_width=True)
-            # Ajouter ici la logique pour marquer un mouvement comme terminé
         else:
             st.info("Aucun mouvement en cours.")
 
     with tab_analytics:
         st.markdown("### 📊 Suivi des Performances")
-        # Logique pour l\'analyse des performances
         df_mouvements_termines = executer("mouvements", "select", filters=[["Statut_Mouvement", "eq", "Terminé"]])
         if not df_mouvements_termines.empty:
             st.dataframe(df_mouvements_termines, use_container_width=True)
@@ -551,8 +501,8 @@ if menu_action == "🔍 Mode Visionneuse":
                     dernier_km_vidange_input = st.number_input("Dernier KM Vidange (Manuel) :", min_value=0, value=int(v_info['KM_Dernier_Vidange']), step=1)
                     nouveau_km_actuel = st.number_input("Kilométrage Actuel / Récent (Manuel) :", min_value=0, value=int(v_info['KM_Recent']), step=1)
                 with c_v3:
-                    date_effective = st.date_input("Date effective de l\'opération :", datetime.now())
-                    action_sync = st.checkbox("Vidange effectuée aujourd\'hui (Synchronise le dernier KM et remet à zéro)", value=False)
+                    date_effective = st.date_input("Date effective de l'opération :", datetime.now())
+                    action_sync = st.checkbox("Vidange effectuée aujourd'hui (Synchronise le dernier KM et remet à zéro)", value=False)
                 
                 if st.button("💾 ENREGISTRER ET RECALCULER DIRECTEMENT", use_container_width=True):
                     date_operation_str = date_effective.strftime("%Y-%m-%d")
@@ -579,7 +529,7 @@ if menu_action == "🔍 Mode Visionneuse":
                     st.rerun()
 
     with tab_crm:
-        st.markdown("### 👥 Banque d\'Information des Conducteurs & Profils Clients")
+        st.markdown("### 👥 Banque d'Information des Conducteurs & Profils Clients")
         c1, c2 = st.columns([5, 4])
         
         with c1:
@@ -604,7 +554,7 @@ if menu_action == "🔍 Mode Visionneuse":
                             col_img1, col_img2 = st.columns(2)
                             with col_img1:
                                 if cli.get('Image_CIN'):
-                                    try: st.image(base64.b64decode(cli['Image_CIN']), caption="Pièce d\'identité (CIN)", use_container_width=True)
+                                    try: st.image(base64.b64decode(cli['Image_CIN']), caption="Pièce d'identité (CIN)", use_container_width=True)
                                     except: pass
                             with col_img2:
                                 if cli.get('Image_Permis'):
@@ -645,8 +595,8 @@ if menu_action == "🔍 Mode Visionneuse":
                                     e_d_cin = st.date_input("Date Délivrance CIN", value=e_init_d_cin)
                                     e_d_per = st.date_input("Date Délivrance Permis", value=e_init_d_per)
                                     
-                                    f_cin_remplace = st.file_uploader("Remplacer l\'image CIN (Optionnel)", type=["png", "jpg", "jpeg"], key=f"file_cin_{unique_suffix}")
-                                    f_per_remplace = st.file_uploader("Remplacer l\'image Permis (Optionnel)", type=["png", "jpg", "jpeg"], key=f"file_per_{unique_suffix}")
+                                    f_cin_remplace = st.file_uploader("Remplacer l'image CIN (Optionnel)", type=["png", "jpg", "jpeg"], key=f"file_cin_{unique_suffix}")
+                                    f_per_remplace = st.file_uploader("Remplacer l'image Permis (Optionnel)", type=["png", "jpg", "jpeg"], key=f"file_per_{unique_suffix}")
                                     
                                     if st.form_submit_button("✅ METTRE À JOUR"):
                                         update_data = {
@@ -709,13 +659,13 @@ if menu_action == "🔍 Mode Visionneuse":
         with col_a1:
             if st.button("🗑️ PURGER TOUS LES MOUVEMENTS"):
                 if st.checkbox("Confirmer la purge des mouvements"):
-                    executer("mouvements", "delete", filters=[]) # Supprime toutes les lignes
+                    executer("mouvements", "delete", filters=[])
                     st.success("Tous les mouvements ont été effacés.")
                     st.rerun()
         with col_a2:
             if st.button("🗑️ RÉINITIALISER LA BASE CLIENTS"):
                 if st.checkbox("Confirmer la purge des clients"):
-                    executer("clients", "delete", filters=[]) # Supprime toutes les lignes
+                    executer("clients", "delete", filters=[])
                     st.success("La base clients a été réinitialisée.")
                     st.rerun()
 
@@ -724,7 +674,7 @@ elif menu_action == "📝 Nouveau Contrat / Réservation":
     st.markdown("### 📝 Création de Fiche : Contrat / Réservation / Maintenance")
     with st.form("form_bbnh_new_contract"):
         c1, c2, c3 = st.columns(3)
-        with c1: nature = st.selectbox("Nature de l\'opération :", ["Location", "Réservation", "Maintenance / Garage"])
+        with c1: nature = st.selectbox("Nature de l'opération :", ["Location", "Réservation", "Maintenance / Garage"])
         with c2: vehicule = st.selectbox("Véhicule concerné :", liste_vehicules_opt)
         with c3: text_type = st.text_input("Type de statut (Ex: Contrat, Réservation) :", value=nature)
 
@@ -784,7 +734,6 @@ elif menu_action == "📝 Nouveau Contrat / Réservation":
             str_d1, str_d2 = d1.strftime("%Y-%m-%d"), d2.strftime("%Y-%m-%d")
             str_t1, str_t2 = t1.strftime("%H:%M"), t2.strftime("%H:%M")
             
-            # Upsert client data
             client_data_to_save = {
                 "Prénom": nom_f.split(' ')[1] if ' ' in nom_f else '',
                 "Nom": nom_f.split(' ')[0] if ' ' in nom_f else nom_f,
@@ -797,9 +746,7 @@ elif menu_action == "📝 Nouveau Contrat / Réservation":
             }
             executer("clients", "upsert", data=client_data_to_save, upsert_on="CIN")
 
-            # Insert into contrats if nature is Contrat
             if "Contrat" in nature:
-                # Générer un Num_Contrat unique, par exemple basé sur un timestamp ou un UUID
                 num_contrat = f"CONTRAT-{datetime.now().strftime('%Y%m%d%H%M%S')}"
                 contract_data = {
                     "Num_Contrat": num_contrat,
@@ -816,7 +763,6 @@ elif menu_action == "📝 Nouveau Contrat / Réservation":
                 }
                 executer("contrats", "insert", data=contract_data)
 
-            # Insert into mouvements
             mouvement_data = {
                 "Matricule": vehicule,
                 "Type_Statut": text_type,
@@ -838,7 +784,6 @@ elif menu_action == "📝 Nouveau Contrat / Réservation":
             }
             executer("mouvements", "insert", data=mouvement_data)
 
-            # Update vidanges
             executer("vidanges", "update", 
                      data={
                          "KM_Recent": int(km_debut), 
@@ -903,7 +848,7 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat / Réservation)":
         liste_mouv_mod = [f"ID: {r['ID']} | {r['Matricule']} — {r['Client']}" for _, r in df_mouv_actifs.iterrows()]
         mouv_selectionne = st.sidebar.selectbox("Sélectionner le dossier à éditer :", liste_mouv_mod)
         id_to_edit = int(mouv_selectionne.split(" | ")[0].replace("ID: ", "").strip())
-        row_init = df_mouv_actifs[df_mouv_actifs['ID'] == id_to_edit].iloc[0]
+        row_init = df_mouvements_actifs[df_mouvements_actifs['ID'] == id_to_edit].iloc[0]
         
         df_cli_spec = executer("clients", "select", filters=[["Nom", "eq", str(row_init['Client'])]])
         row_cli_init = df_cli_spec.iloc[0] if not df_cli_spec.empty else {}
@@ -1026,7 +971,7 @@ elif menu_action == "❌ Supprimer une opération":
     if not df_mouv_actifs.empty:
         liste_mouv_del = [f"ID: {r['ID']} | {r['Matricule']} — {r['Client']}" for _, r in df_mouv_actifs.iterrows()]
         with st.sidebar.form("form_bbnh_delete_mouv"):
-            mouv_selectionne = st.selectbox("Choisir l\'opération à détruire :", liste_mouv_del)
+            mouv_selectionne = st.selectbox("Choisir l'opération à détruire :", liste_mouv_del)
             confirmer_action = st.checkbox("Confirmer la suppression")
             if st.form_submit_button("💥 RETIRER DU PLANNING"):
                 if confirmer_action:
@@ -1050,7 +995,7 @@ with st.container(border=True):
     with c_search2:
         search_date_fin = st.date_input("📅 Date de Retour prévue :", datetime.now() + timedelta(days=3), key="adv_search_end")
     with c_search3:
-        st.markdown("<div style=\'height:28px;\'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
         btn_recherche_dispo = st.button("🔍 Vérifier les Disponibilités", use_container_width=True)
 
     if btn_recherche_dispo:
@@ -1060,7 +1005,6 @@ with st.container(border=True):
         if search_date_debut > search_date_fin:
             st.error("⚠️ La date de sortie ne peut pas être supérieure à la date de retour.")
         else:
-            # Récupérer les mouvements qui chevauchent la période de recherche
             overlapping_mouvements = executer("mouvements", "select", 
                                               select_cols="Matricule",
                                               filters=[["Statut_Mouvement", "eq", "En cours"],
@@ -1082,7 +1026,7 @@ with st.container(border=True):
                 )
                 st.dataframe(df_disponibles_affichage, use_container_width=True, hide_index=True)
             else:
-                st.warning(f"❌ Désolé, aucun véhicule n\'est disponible dans la flotte BBNH du {str_s_start} au {str_s_end}.")
+                st.warning(f"❌ Désolé, aucun véhicule n'est disponible dans la flotte BBNH du {str_s_start} au {str_s_end}.")
 
 # --- TAB 3 : LOGISTIQUE ---
 with tab_logistique:
@@ -1126,7 +1070,6 @@ with tab_logistique:
                 }
                 executer("mouvements", "update", data=update_data_mouvement, filters=[["ID", "eq", id_mouvement_retour]])
 
-                # Mettre à jour le KM_Recent dans la table vidanges
                 executer("vidanges", "update", 
                          data={
                              "KM_Recent": int(km_retour),
@@ -1167,7 +1110,7 @@ with tab_analytics:
             if not sorties.empty:
                 sorties_final = sorties[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Prix', 'KM_Debut']].rename(columns={'Matricule': '🚘 Matricule', 'Client': '👤 Client / Conducteur', 'Date_Debut': '📅 DATE SORTIE', 'Date_Fin': '📅 DATE RETOUR PRÉVUE', 'Prix': '💰 PRIX (DT)', 'KM_Debut': '🔢 KM SORTIE'})
                 st.dataframe(sorties_final, use_container_width=True, hide_index=True)
-            else: st.info("Aucun véhicule n\'est parti à cette date.")
+            else: st.info("Aucun véhicule n'est parti à cette date.")
         with col_droite:
             st.markdown("### 🛬 2. VOITURES RETOURNÉES (RETOURS)")
             if not entrees.empty:
