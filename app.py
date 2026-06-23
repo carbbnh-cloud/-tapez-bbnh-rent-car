@@ -121,6 +121,7 @@ st.markdown("""
         border-radius: 14px !important;
     }
 
+    /* --- STYLE TABLEAU CONTRATS TYPE IMAGE --- */
     .contract-table {
         width: 100%;
         border-collapse: collapse;
@@ -306,6 +307,7 @@ def executer(sql, params=(), modifier=False):
         else:
             df = pd.read_sql_query(sql, conn, params=params)
     except Exception as e:
+        # st.error(f"Erreur base de données : {e}")
         reussi = False
     finally:
         conn.close()
@@ -313,6 +315,7 @@ def executer(sql, params=(), modifier=False):
         return reussi
     return df
 
+# S'assurer que la base est prête avant tout
 preparer_base()
 
 def formater_heure_propre(valeur_excel):
@@ -436,6 +439,7 @@ with st.sidebar:
                 st.rerun()
             except Exception as e: st.error(f"Erreur : {e}")
 
+# Chargement sécurisé des mouvements
 df_mouvs = executer("SELECT * FROM mouvements")
 
 # --- PROCESS DES FORMULAIRES DE LA SIDEBAR ---
@@ -455,6 +459,7 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
     f_cin = st.sidebar.file_uploader("Fichier CIN (Image/PDF) :", type=["png", "jpg", "jpeg", "pdf"])
     f_permis = st.sidebar.file_uploader("Fichier Permis (Image/PDF) :", type=["png", "jpg", "jpeg", "pdf"])
     
+    # --- BLOC DATES & CALCULS AUTOMATIQUES ---
     st.sidebar.markdown("---")
     d1 = st.sidebar.date_input("Date Réception / Début :", datetime.now())
     t1 = st.sidebar.time_input("Heure Réception :", time(9, 0))
@@ -466,6 +471,7 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
         nbr_jours = 1
         
     st.sidebar.markdown(f"**🔢 Durée estimée :** `{nbr_jours} jour(s)`")
+    
     prix_unitaire = st.sidebar.number_input("💰 Prix Unitaire / Jour (DT) :", min_value=0, value=100, step=5)
     
     total_auto = nbr_jours * prix_unitaire
@@ -628,9 +634,13 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
             
             executer("""
                 UPDATE mouvements 
-                SET Matricule = ?, Type_Statut = ?, Client = ?, Date_Debut = ?, Heure_Debut = ?, Date_Fin = ?, Heure_Fin = ?, Prix = ?, Caution = ?, Reste = ?, Lieu_Reception = ?, No_Vol = ?, Info_Note = ?, KM_Debut = ?
+                SET Matricule = ?, Type_Statut = ?, Client = ?, Date_Debut = ?, Heure_Debut = ?, Date_Fin = ?, Heure_Fin = ?, 
+                    Prix = ?, Caution = ?, Reste = ?, Lieu_Reception = ?, No_Vol = ?, Info_Note = ?, KM_Debut = ?
                 WHERE ID = ?
-            """, (mod_vehicule, mod_nature, mod_client, str_mod_d1, str_mod_t1, str_mod_d2, str_mod_t2, str(mod_prix), str(mod_caution), str(mod_reste), mod_lieu, mod_vol, mod_note, int(mod_km_deb), id_to_edit), modifier=True)
+            """, (
+                mod_vehicule, mod_nature, mod_client, str_mod_d1, str_mod_t1, str_mod_d2, str_mod_t2,
+                str(mod_prix), str(mod_caution), str(mod_reste), mod_lieu, mod_vol, mod_note, int(mod_km_deb), id_to_edit
+            ), modifier=True)
             
             executer("UPDATE vidanges SET KM_Recent = ?, Date_Mise_A_Jour = ? WHERE Matricule = ?", (int(mod_km_deb), str_mod_d1, mod_vehicule), modifier=True)
             st.success("Toutes les données ont été mises à jour avec succès !")
@@ -659,25 +669,33 @@ st.markdown("<h1>BBNH WORKSPACE AUTOMATION</h1>", unsafe_allow_html=True)
 with st.container(border=True):
     st.markdown("### 🔎 RECHERCHE AVANCÉE : VOITURES DISPONIBLES PAR PÉRIODE")
     c_search1, c_search2, c_search3 = st.columns([2, 2, 1.5])
-    with c_search1: search_date_debut = st.date_input("📅 Date de Sortie souhaitée :", datetime.now(), key="adv_search_start")
-    with c_search2: search_date_fin = st.date_input("📅 Date de Retour prévue :", datetime.now() + timedelta(days=3), key="adv_search_end")
+    
+    with c_search1:
+        search_date_debut = st.date_input("📅 Date de Sortie souhaitée :", datetime.now(), key="adv_search_start")
+    with c_search2:
+        search_date_fin = st.date_input("📅 Date de Retour prévue :", datetime.now() + timedelta(days=3), key="adv_search_end")
     with c_search3:
         st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
         btn_recherche_dispo = st.button("🔍 Vérifier les Disponibilités", use_container_width=True)
-        
+
     if btn_recherche_dispo:
         str_s_start = search_date_debut.strftime("%Y-%m-%d")
         str_s_end = search_date_fin.strftime("%Y-%m-%d")
+        
         if search_date_debut > search_date_fin:
             st.error("⚠️ La date de sortie ne peut pas être supérieure à la date de retour.")
         else:
             query_dispo = """
-                SELECT * FROM stock WHERE [Matricule] NOT IN (
+                SELECT * FROM stock 
+                WHERE [Matricule] NOT IN (
                     SELECT DISTINCT Matricule FROM mouvements 
-                    WHERE Statut_Mouvement = 'En cours' AND Date_Debut <= ? AND Date_Fin >= ?
+                    WHERE Statut_Mouvement = 'En cours'
+                    AND Date_Debut <= ? 
+                    AND Date_Fin >= ?
                 )
             """
             df_disponibles = executer(query_dispo, (str_s_end, str_s_start))
+            
             if not df_disponibles.empty:
                 st.markdown(f"##### 🚗 {len(df_disponibles)} Véhicule(s) disponible(s) du `{str_s_start}` au `{str_s_end}` :")
                 df_disponibles_affichage = df_disponibles[['Matricule', 'Marque', 'Modèle', 'Année']].rename(
@@ -686,6 +704,7 @@ with st.container(border=True):
                 st.dataframe(df_disponibles_affichage, use_container_width=True, hide_index=True)
             else:
                 st.warning(f"❌ Désolé, aucun véhicule n'est disponible dans la flotte BBNH du {str_s_start} au {str_s_end}.")
+
 st.markdown("<br>", unsafe_allow_html=True)
 
 # --- NAVIGATION DES ONGLETS DE L'INTERFACE APPLICATION ---
@@ -699,7 +718,7 @@ tab_planning, tab_contrats, tab_logistique, tab_analytics, tab_vidange, tab_crm,
     "⚙️ PANNEAU DE CONFIGURATION"
 ])
 
-# --- TAB 1 : PLANNING 365 JOURS ---
+# --- TAB 1 : PLANNING ---
 with tab_planning:
     st.markdown("### 🗓️ Vue Globale & Filtres Intelligents")
     f_col_car, f_col_date_start, f_col_date_target = st.columns([2, 1.5, 1.5])
@@ -710,201 +729,481 @@ with tab_planning:
         date_base = st.date_input("Date de début de la grille :", datetime(2026, 1, 1), key="grid_bbnh_date")
     with f_col_date_target:
         recherche_date = st.date_input("📅 Aller à la date spécifique (Focus) :", datetime(2026, 6, 12))
-        
+
     array_jours = [date_base + timedelta(days=i) for i in range(365)]
     nom_colonnes = [j.strftime("%d/%m") for j in array_jours]
-    
     df_voitures_valides = df_voitures[df_voitures['Matricule'].notna() & (df_voitures['Matricule'].str.strip().str.lower() != 'nan')] if not df_voitures.empty else pd.DataFrame()
-    
+
     if not df_voitures_valides.empty:
         build_matrix = []
         for _, car in df_voitures_valides.iterrows():
             immat = str(car.get('Matricule', '')).strip()
-            if vehicule_recherche != "-- Toutes les voitures --" and immat != vehicule_recherche:
-                continue
+            if vehicule_recherche != "-- Toutes les voitures --" and immat != vehicule_recherche: continue
             modele = str(car.get('Modèle', car.get('Marque', 'Véhicule')))
             ligne = {"Flotte BBNH": f"🚘 {modele} — [{immat}]"}
-            for col_j in nom_colonnes:
-                ligne[col_j] = "● Disponible"
+            for col_j in nom_colonnes: ligne[col_j] = "● Disponible"
             build_matrix.append(ligne)
-            
+
         if len(build_matrix) > 0:
             df_final_grid = pd.DataFrame(build_matrix)
             if not df_mouvs.empty and not df_final_grid.empty:
+                suivi_jours = {}
                 for _, mv in df_mouvs.iterrows():
-                    if pd.isna(mv.get('Matricule')) or pd.isna(mv.get('Date_Debut')) or pd.isna(mv.get('Date_Fin')):
-                        continue
+                    if pd.isna(mv.get('Matricule')) or pd.isna(mv.get('Date_Debut')) or pd.isna(mv.get('Date_Fin')): continue
                     m_v = str(mv['Matricule']).strip()
                     s_v = str(mv['Type_Statut']).strip().lower()
                     client_v = str(mv['Client']).strip()
                     h_deb_label = formater_heure_propre(mv.get('Heure_Debut'))
                     h_fin_label = formater_heure_propre(mv.get('Heure_Fin'))
-                    
-                    try: d_debut_mv = datetime.strptime(str(mv['Date_Debut']).split(" ")[0], "%Y-%m-%d").date()
-                    except: continue
-                    try: d_fin_mv = datetime.strptime(str(mv['Date_Fin']).split(" ")[0], "%Y-%m-%d").date()
-                    except: continue
-                    
-                    for idx_lg, r_lg in df_final_grid.iterrows():
-                        if f"[{m_v}]" in r_lg["Flotte BBNH"]:
-                            cur_date = d_debut_mv
-                            while cur_date <= d_fin_mv:
-                                col_cible = cur_date.strftime("%d/%m")
-                                if col_cible in df_final_grid.columns:
-                                    if "location" in s_v:
-                                        df_final_grid.at[idx_lg, col_cible] = f"🔴 {client_v} ({h_deb_label}➔{h_fin_label})"
-                                    elif "réservation" in s_v or "reservation" in s_v:
-                                        df_final_grid.at[idx_lg, col_cible] = f"🟡 [RÉS] {client_v}"
-                                    else:
-                                        df_final_grid.at[idx_lg, col_cible] = f"🛠️ {mv['Type_Statut']}"
-                                cur_date += timedelta(days=1)
-            
-            idx_focus = nom_colonnes.index(recherche_date.strftime("%d/%m")) if recherche_date.strftime("%d/%m") in nom_colonnes else 0
-            cols_ordonnees = ["Flotte BBNH"] + nom_colonnes[idx_focus:idx_focus+15]
-            st.dataframe(df_final_grid[cols_ordonnees], use_container_width=True, hide_index=True)
-        else:
-            st.info("Aucun véhicule ne correspond au filtre.")
-    else:
-        st.warning("Aucun véhicule enregistré dans le stock.")
 
-# --- TAB 2 : LISTE DE CONTRAT ---
+                    try:
+                        d_debut_mv = pd.to_datetime(mv['Date_Debut'], errors='coerce', format='mixed').date()
+                        d_fin_mv = pd.to_datetime(mv['Date_Fin'], errors='coerce', format='mixed').date()
+                        if m_v not in suivi_jours: suivi_jours[m_v] = {}
+                            
+                        for j in array_jours:
+                            if d_debut_mv <= j <= d_fin_mv:
+                                key_day = j.strftime("%d/%m")
+                                if key_day not in suivi_jours[m_v]:
+                                    suivi_jours[m_v][key_day] = {
+                                        "depart": False, "fin": False, 
+                                        "client_sortant": "", "client_entrant": "",
+                                        "heure_sortie": "00:00", "heure_retour": "00:00", 
+                                        "desc": "", "type": s_v
+                                    }
+                                if j == d_debut_mv: 
+                                    suivi_jours[m_v][key_day]["depart"] = True
+                                    suivi_jours[m_v][key_day]["client_sortant"] = client_v
+                                    suivi_jours[m_v][key_day]["heure_sortie"] = h_deb_label
+                                if j == d_fin_mv: 
+                                    suivi_jours[m_v][key_day]["fin"] = True
+                                    suivi_jours[m_v][key_day]["client_entrant"] = client_v
+                                    suivi_jours[m_v][key_day]["heure_retour"] = h_fin_label
+                                
+                                if not (suivi_jours[m_v][key_day]["depart"] and suivi_jours[m_v][key_day]["fin"]):
+                                    if "garage" in s_v or "maintenance" in s_v: 
+                                        suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
+                                    elif "réservation" in s_v: 
+                                        suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                    else: 
+                                        suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                    except: pass
+
+                for idx, row in df_final_grid.iterrows():
+                    mat_extracted = row["Flotte BBNH"].split("[")[-1].replace("]", "").strip()
+                    if mat_extracted in suivi_jours:
+                        for key_day, data in suivi_jours[mat_extracted].items():
+                            if key_day in df_final_grid.columns:
+                                if data["depart"] and data["fin"]:
+                                    df_final_grid.at[idx, key_day] = f"🔵 🛬{data['heure_retour']} {data['client_entrant']} / 🛫{data['heure_sortie']} {data['client_sortant']}"
+                                elif data["desc"] != "": 
+                                    df_final_grid.at[idx, key_day] = data["desc"]
+
+            def style_bbnh_theme(val):
+                val_str = str(val)
+                if "● Disponible" in val_str: return "background-color: #ffffff; color: #111827; font-size: 11px; font-weight: 600; text-align: center; border: 1px solid #e5e7eb;"
+                elif "🔵" in val_str: return "background-color: #1d4ed8; color: #ffffff; font-weight: 700; font-size: 10px; border: 2px solid #60a5fa;"
+                elif "🛠️" in val_str: return "background-color: #eab308; color: #1e1b4b; font-weight: 700; font-size: 11px;"
+                elif "🔴" in val_str: return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
+                elif "🟢" in val_str: return "background-color: #16a34a; color: #ffffff; font-weight: 600; font-size: 11px;"
+                return "background-color: #090b0e; color: #ffffff; font-weight: 700; font-size: 12px; border-right: 3px solid #e60000;"
+
+            target_col_str = recherche_date.strftime("%d/%m")
+            cols_ordonnees = ['Flotte BBNH']
+            if target_col_str in nom_colonnes:
+                idx_target = nom_colonnes.index(target_col_str)
+                cols_ordonnees += nom_colonnes[max(0, idx_target - 2):min(365, idx_target + 12)]
+
+            st.dataframe(df_final_grid[cols_ordonnees].style.map(style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH']), use_container_width=True, height=800)
+
+# --- TAB 2 : LISTE DE CONTRAT (STYLE IMAGE) ---
 with tab_contrats:
-    st.markdown("### 📄 Contrats Récents & Génération à la volée")
-    df_contrats_db = executer("SELECT * FROM contrats")
-    if not df_contrats_db.empty:
-        st.dataframe(df_contrats_db, use_container_width=True, hide_index=True)
+    st.markdown("### 📄 Liste Détaillée des Contrats & Mouvements")
+    
+    # Récupérer tous les mouvements (contrats et réservations)
+    df_contrats_list = executer("SELECT * FROM mouvements ORDER BY ID DESC")
+    
+    if df_contrats_list is not None and not df_contrats_list.empty:
+        # Construction du tableau HTML pour un style personnalisé
+        html_table = """
+        <table class="contract-table">
+            <thead>
+                <tr>
+                    <th>Voiture</th>
+                    <th>Tél</th>
+                    <th>N° Contrat</th>
+                    <th>Facture</th>
+                    <th>D.Départ</th>
+                    <th>D.Retour</th>
+                    <th>Jours</th>
+                    <th>Montant TTC(DT)</th>
+                    <th>Reste(DT)</th>
+                    <th>Extras</th>
+                    <th>KM Sortie</th>
+                    <th>KM Retour</th>
+                    <th>KM</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        
+        for _, row in df_contrats_list.iterrows():
+            # Préparation des données
+            matricule = str(row['Matricule'])
+            client = str(row['Client'])
+            
+            # Recherche du téléphone client
+            df_tel = executer("SELECT [Numéro de téléphone] FROM clients WHERE [Nom] = ?", (client,))
+            tel = df_tel.iloc[0]['Numéro de téléphone'] if df_tel is not None and not df_tel.empty else "N/A"
+            
+            # Formatage des dates
+            try:
+                d_dep = datetime.strptime(row['Date_Debut'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                d_ret = datetime.strptime(row['Date_Fin'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                jours = (datetime.strptime(row['Date_Fin'], "%Y-%m-%d") - datetime.strptime(row['Date_Debut'], "%Y-%m-%d")).days
+                if jours <= 0: jours = 1
+            except:
+                d_dep = row['Date_Debut']
+                d_ret = row['Date_Fin']
+                jours = "?"
+            
+            h_dep = row['Heure_Debut']
+            h_ret = row['Heure_Fin']
+            
+            try:
+                montant = f"{float(row['Prix']):,.3f}"
+            except:
+                montant = "0.000"
+                
+            try:
+                reste_val = float(row['Reste'])
+            except:
+                reste_val = 0.0
+                
+            reste_style = "status-paid" if reste_val <= 0 else "status-pending"
+            reste_text = "PAYÉ" if reste_val <= 0 else f"{reste_val:,.3f} DT"
+            
+            try:
+                km_s = int(row['KM_Debut'])
+            except:
+                km_s = 0
+                
+            try:
+                km_r = int(row['KM_Fin'])
+            except:
+                km_r = 0
+                
+            km_total = km_r - km_s if km_r > km_s else 0
+            
+            # Calculs factices pour les indicateurs de couleur (simulés comme sur l'image)
+            km_ess_s = f"{km_s // 100} Km/Ess"
+            km_j_s = f"{km_s // 200} Km/j"
+            km_dt_s = f"{(km_s % 1000):,.3f} DT"
+            
+            km_ess_r = f"{km_r // 100} Km/Ess"
+            km_j_r = f"{km_r // 200} Km/j"
+            km_dt_r = f"{(km_r % 1000):,.3f} DT"
+            
+            html_table += f"""
+                <tr>
+                    <td>
+                        <div class="car-info">
+                            <img src="https://img.icons8.com/ios-filled/50/000000/car.png" class="car-image">
+                            <div class="car-plate">{matricule}</div>
+                            <div style="font-size:10px; color:#666;">Location</div>
+                        </div>
+                    </td>
+                    <td style="color:#007bff; font-weight:bold;">{tel}</td>
+                    <td>
+                        <div class="contract-num">{row['ID']}</div>
+                        <div style="display:flex; justify-content:center; gap:5px; margin-top:5px;">
+                            <span>📄</span><span>🖨️</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="color:red; font-size:20px;">📄</div>
+                        <div style="background:#ffff00; font-size:9px; padding:2px; font-weight:bold;">Imprimer Extrait</div>
+                    </td>
+                    <td>{d_dep}<br>{h_dep}</td>
+                    <td>{d_ret}<br>{h_ret}</td>
+                    <td>{jours} j</td>
+                    <td style="font-weight:bold;">{montant}</td>
+                    <td><span class="status-badge {reste_style}">✔ {reste_text}</span></td>
+                    <td>
+                        <div style="background:#f1f3f5; padding:5px; border-radius:4px; font-size:10px;">
+                            <span style="color:green;">✔</span><br>
+                            {float(row.get('Caution', 0)):,.3f} DT
+                        </div>
+                    </td>
+                    <td>
+                        <div class="km-box">
+                            <div class="km-value" style="color:#28a745;">{km_s} Km</div>
+                            <div class="km-indicator km-blue">{km_ess_s}</div>
+                            <div class="km-indicator km-yellow">{km_j_s}</div>
+                            <div class="km-indicator km-purple">{km_ess_s}</div>
+                            <div class="km-indicator km-black">{km_dt_s}</div>
+                            <div style="color:green; font-size:12px;">✔</div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="km-box">
+                            <div class="km-value" style="color:#dc3545;">{km_r} Km</div>
+                            <div class="km-indicator km-green">{km_j_r}</div>
+                            <div class="km-indicator km-red">{km_j_r}</div>
+                            <div class="km-indicator km-orange">{km_j_r}</div>
+                            <div class="km-indicator km-black">{km_dt_r}</div>
+                            <div style="color:green; font-size:12px;">✔</div>
+                        </div>
+                    </td>
+                    <td style="font-weight:bold; font-size:11px;">
+                        PROCHAIN<br>V : 20000<br>KM
+                    </td>
+                </tr>
+            """
+            
+        html_table += "</tbody></table>"
+        st.markdown(html_table, unsafe_allow_html=True)
     else:
-        st.info("Aucun contrat formel enregistré dans la table courante.")
+        st.info("Aucun contrat ou mouvement enregistré pour le moment.")
 
-# --- TAB 3 : BOX RECEPTION RETOURS ---
+# --- TAB 3 : RECEPTION LOGISTIQUE ---
 with tab_logistique:
-    st.markdown("### 🔑 Clôture et Retour Véhicule (Calcul KM & Restitution)")
-    df_mouvs_actifs = executer("SELECT * FROM mouvements WHERE Statut_Mouvement = 'En cours'")
-    
-    if not df_mouvs_actifs.empty:
-        liste_box = [f"ID: {r['ID']} | {r['Matricule']} — {r['Client']}" for _, r in df_mouvs_actifs.iterrows()]
-        mouv_reception = st.selectbox("Sélectionner le véhicule à restituer :", liste_box)
-        
-        id_mouv = int(mouv_reception.split(" | ")[0].replace("ID: ", "").strip())
-        row_mouv = df_mouvs_actifs[df_mouvs_actifs['ID'] == id_mouv].iloc[0]
-        
-        col_box1, col_box2 = st.columns(2)
-        with col_box1:
-            km_depart_f = st.number_input("Kilométrage de Départ (Rappel) :", value=int(row_mouv.get('KM_Debut', 0)), disabled=True)
-            km_retour_f = st.number_input("Kilométrage au Retour Historique * :", min_value=km_depart_f, value=km_depart_f + 100)
-        with col_box2:
-            st.markdown(f"**💰 Montant Global dû :** `{row_mouv['Prix']} DT`")
-            st.markdown(f"**🛡️ Caution Récupérée :** `{row_mouv['Caution']} DT`")
-            st.markdown(f"**🔴 Reste à solder à l'origine :** `{row_mouv['Reste']} DT`")
-            
-        if st.button("🏁 CONFIRMER LE RETOUR DU VEHICULE ET ARCHIVER"):
-            executer("UPDATE mouvements SET Statut_Mouvement = 'Clôturé', KM_Fin = ? WHERE ID = ?", (int(km_retour_f), id_mouv), modifier=True)
-            executer("UPDATE vidanges SET KM_Recent = ?, Date_Mise_A_Jour = ? WHERE Matricule = ?", (int(km_retour_f), datetime.now().strftime("%Y-%m-%d"), str(row_mouv['Matricule']).strip()), modifier=True)
-            st.success(f"Véhicule {row_mouv['Matricule']} restitué avec succès. Kilométrage mis à jour.")
-            st.rerun()
-    else:
-        st.success("🎉 Merveilleux ! Tous les véhicules de l'agence sont actuellement disponibles au garage.")
-
-# --- TAB 4 : SUIVI DES PERFORMANCES ---
-with tab_analytics:
-    st.markdown("### 📊 Statistiques & Rentabilité")
-    if not df_mouvs.empty:
-        c_an1, c_an2, c_an3 = st.columns(3)
-        with c_an1:
-            total_ca = 0
-            for p in df_mouvs['Prix']:
-                try: total_ca += float(str(p).replace(' ', ''))
-                except: pass
-            st.metric("Chiffre d'Affaires Théorique Évalué", f"{int(total_ca)} DT")
-        with c_an2:
-            st.metric("Nombre total de dossiers traités", len(df_mouvs))
-        with c_an3:
-            locs_count = len(df_mouvs[df_mouvs['Type_Statut'].str.lower() == 'location'])
-            st.metric("Total Contrats Signés", locs_count)
-    else:
-        st.info("Aucune statistique disponible pour le moment.")
-
-# --- TAB 5 : SUIVI DES VIDANGES ---
-with tab_vidange:
-    st.markdown("### 🔧 Gestion & Alerte Vidange de la Flotte")
-    df_vidanges_db = executer("SELECT * FROM vidanges")
-    
-    if not df_vidanges_db.empty:
-        for idx_v, row_v in df_vidanges_db.iterrows():
-            km_der = int(row_v.get('KM_Dernier_Vidange', 0))
-            km_rec = int(row_v.get('KM_Recent', 0))
-            diff_km = km_rec - km_der
-            reste_avant_vidange = max(0, 10000 - diff_km)
-            
-            c_vid1, c_vid2 = st.columns([3, 1])
-            with c_vid1:
-                st.markdown(f"🚗 **Véhicule :** `{row_v['Matricule']}` ({row_v['Marque']}) | Dernier vidange effectué à : `{km_der} KM` | KM Actuel calculé : `{km_rec} KM`")
-                if diff_km >= 10000:
-                    st.error(f"🚨 ALERTE VIDANGE DÉPASSÉE de {diff_km - 10000} KM ! Action immédiate requise.")
-                else:
-                    st.info(f"⏳ Reste `{reste_avant_vidange} KM` avant le prochain vidange obligatoire.")
-            with c_vid2:
-                nouveau_km_v = st.number_input("Nouveau KM Vidange :", min_value=0, value=km_rec, key=f"v_km_{idx_v}")
-                if st.button("🔧 Valider Vidange", key=f"btn_v_{idx_v}"):
-                    executer("UPDATE vidanges SET KM_Dernier_Vidange = ?, KM_Recent = ?, Date_Dernier_Vidange = ? WHERE Matricule = ?", 
-                             (int(nouveau_km_v), int(nouveau_km_v), datetime.now().strftime("%Y-%m-%d"), str(row_v['Matricule'])), modifier=True)
-                    st.success("Vidange enregistré !")
-                    st.rerun()
-            st.markdown("---")
-    else:
-        st.info("Aucun véhicule configuré dans le module logistique des vidanges.")
-
-# --- TAB 6 : COMPTE CONDUCTEURS (CRM) ---
-with tab_crm:
-    st.markdown("### 👥 CRM & Fiches Numériques Client")
-    df_clients_complets = executer("SELECT * FROM clients")
-    
-    if not df_clients_complets.empty:
-        for _, cli in df_clients_complets.iterrows():
-            with st.expander(f"👤 {str(cli['Nom']).upper()} {str(cli.get('Prénom', ''))} (CIN: {cli['CIN']})", expanded=False):
-                col_c1, col_c2 = st.columns(2)
-                with col_c1:
-                    st.markdown(f"**N° Permis :** {cli.get('N° Permis', 'N/A')}")
-                    st.markdown(f"**Date Délivrance CIN :** {cli.get('Date Délivrance CIN', 'N/A')}")
-                    st.markdown(f"**Date Délivrance Permis :** {cli.get('Date Délivrance Permis', 'N/A')}")
-                    st.markdown(f"**Téléphone :** {cli.get('Numéro de téléphone', 'N/A')}")
-                    st.markdown(f"**Remarque client :** {cli.get('Remarque', 'Aucune')}")
-                with col_col_img := col_c2:
-                    img_cin_data = cli.get('Image CIN', '')
-                    img_per_data = cli.get('Image Permis', '')
-                    
-                    if img_cin_data:
-                        try: st.image(base64.b64decode(img_cin_data), caption="Numérisation C.I.N", width=200)
-                        except: st.caption("🖼️ Fichier CIN stocké (Format non-image ou PDF)")
-                    if img_per_data:
-                        try: st.image(base64.b64decode(img_per_data), caption="Numérisation Permis de Conduire", width=200)
-                        except: st.caption("🖼️ Fichier Permis stocké (Format non-image ou PDF)")
-    else:
-        st.info("Aucun conducteur enregistré dans la base de données locale.")
-        
-    st.markdown("#### ➕ Ajouter un Nouveau Client manuellement")
-    with st.form("form_new_manual_client"):
-        n_nom = st.text_input("Nom du Client * :")
-        n_prenom = st.text_input("Prénom du Client :")
-        n_cin = st.text_input("Numéro CIN * :")
-        n_d_cin = st.date_input("Date Délivrance CIN :", datetime.now() - timedelta(days=365))
-        n_permis = st.text_input("Numéro Permis * :")
-        n_d_per = st.date_input("Date Délivrance Permis :", datetime.now() - timedelta(days=365))
-        n_tel = st.text_input("Numéro de téléphone :")
-        
-        f_cin_new = st.file_uploader("Fichier image CIN * :", type=["jpg", "png", "jpeg"])
-        f_per_new = st.file_uploader("Fichier image Permis * :", type=["jpg", "png", "jpeg"])
-        
-        if st.form_submit_button("💾 ENREGISTRER CLIENT"):
-            if n_nom and n_cin and n_permis:
-                executer("""
-                    INSERT OR REPLACE INTO clients ([Prénom], [Nom], [CIN], [Numéro de téléphone], [N° Permis], [Date Délivrance CIN], [Date Délivrance Permis], [Image CIN], [Image Permis])
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (n_prenom, n_nom, n_cin, n_tel, n_permis, n_d_cin.strftime("%Y-%m-%d"), n_d_per.strftime("%Y-%m-%d"), encoder_image_base64(f_cin_new), encoder_image_base64(f_per_new)), modifier=True)
-                st.success("Nouveau client enregistré !")
+    st.markdown("### 🔑 Terminal de Restitution et Clôture")
+    df_actifs = executer("SELECT * FROM mouvements WHERE Statut_Mouvement = 'En cours'")
+    if df_actifs is not None and not df_actifs.empty:
+        choix_actifs = [f"ID: {r['ID']} | {r['Matricule']} — {r['Client']}" for _, r in df_actifs.iterrows()]
+        col_list, col_details = st.columns([1, 1])
+        with col_list:
+            target_v = st.selectbox("Sélectionner le véhicule rentrant :", choix_actifs)
+            d_reel = st.date_input("Date de retour physique effective :", datetime.now())
+            t_reel = st.time_input("Heure de retour effective :", datetime.now().time())
+            l_retour = st.text_input("Lieu de retour effectif :", value="Siège Monastir")
+            id_mouv_temp = int(target_v.split(" | ")[0].replace("ID: ", "").strip()) if target_v else 0
+            km_dep_de_base = 0
+            if id_mouv_temp > 0:
+                res_dep = df_actifs[df_actifs['ID'] == id_mouv_temp]
+                if not res_dep.empty:
+                    try: km_dep_de_base = int(float(str(res_dep.iloc[0].get('KM_Debut', 0)).replace(' ', '')))
+                    except: km_dep_de_base = 0
+            km_fin = st.number_input("Kilométrage au Retour :", min_value=km_dep_de_base, value=km_dep_de_base, step=1)
+            if st.button("✅ VALIDATION DU RETOUR", use_container_width=True):
+                id_mouv = target_v.split(" | ")[0].replace("ID: ", "").strip()
+                str_t_reel = t_reel.strftime("%H:%M")
+                vehicule_rentre = str(res_dep.iloc[0].get('Matricule'))
+                
+                executer("UPDATE mouvements SET Statut_Mouvement = 'Retourné', Date_Fin = ?, Heure_Fin = ?, Lieu_Reception = ?, KM_Fin = ? WHERE ID = ?", 
+                         (d_reel.strftime("%Y-%m-%d"), str_t_reel, l_retour, int(km_fin), id_mouv), modifier=True)
+                executer("UPDATE vidanges SET KM_Recent = ?, Date_Mise_A_Jour = ? WHERE Matricule = ?", (int(km_fin), d_reel.strftime("%Y-%m-%d"), vehicule_rentre), modifier=True)
+                st.success("Le retour a été validé et mis à jour pour le suivi des vidanges !")
                 st.rerun()
-            else:
-                st.error("Veuillez remplir les champs obligatoires (*)")
+        with col_details:
+            id_sel = int(target_v.split(" | ")[0].replace("ID: ", "").strip()) if target_v else None
+            if id_sel:
+                row_sel = df_actifs[df_actifs['ID'] == id_sel].iloc[0]
+                diff_km = int(km_fin) - int(km_dep_de_base)
+                st.markdown(f"**📊 Distance Parcourue :** <span style='color:#4ade80; font-weight:bold; font-size:22px;'>{diff_km} KM</span>", unsafe_allow_html=True)
+                st.write(f"**Reste dû :** {row_sel.get('Reste', '0')} DT")
+    else: st.info("Aucun déplacement en cours.")
+
+# --- TAB 4 : PERFORMANCE ---
+with tab_analytics:
+    st.markdown("### 📊 Chiffre d'Affaires & Synthèse Logistique du Jour")
+    day_target = st.date_input("Sélectionner la journée d'analyse :", datetime.now())
+    if df_mouvs is not None and not df_mouvs.empty:
+        df_stats = df_mouvs.copy()
+        df_stats['Clean_D'] = pd.to_datetime(df_stats['Date_Debut'], errors='coerce', format='mixed').dt.date
+        df_stats['Clean_F'] = pd.to_datetime(df_stats['Date_Fin'], errors='coerce', format='mixed').dt.date
+        df_stats['KM_Debut'] = pd.to_numeric(df_stats['KM_Debut'], errors='coerce').fillna(0).astype(int)
+        df_stats['KM_Fin'] = pd.to_numeric(df_stats['KM_Fin'], errors='coerce').fillna(0).astype(int)
+        df_stats['Val_Prix'] = df_stats['Prix'].astype(str).str.replace(' ', '').str.replace('DT', '').str.replace(',','.')
+        df_stats['Val_Prix'] = pd.to_numeric(df_stats['Val_Prix'], errors='coerce').fillna(0.0)
+        
+        sorties = df_stats[df_stats['Clean_D'] == day_target]
+        entrees = df_stats[df_stats['Clean_F'] == day_target]
+        
+        k1, k2, k3 = st.columns(3)
+        with k1: st.metric("📈 DÉPARTS CONSTATÉS", f"{len(sorties)} Véhicule(s)")
+        with k2: st.metric("🔑 RETOURS ENREGISTRÉS", f"{len(entrees)} Véhicule(s)")
+        with k3: st.metric("💰 CA DU JOUR (DÉPARTS)", f"{sorties['Val_Prix'].sum():,.2f} DT")
+            
+        st.markdown("<br><hr>", unsafe_allow_html=True)
+        col_gauche, col_droite = st.columns(2)
+        with col_gauche:
+            st.markdown("### 🛫 1. VOITURES SORTIES (DÉPARTS)")
+            if not sorties.empty:
+                sorties_final = sorties[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Prix', 'KM_Debut']].rename(columns={'Matricule': '🚘 Matricule', 'Client': '👤 Client / Conducteur', 'Date_Debut': '📅 DATE SORTIE', 'Date_Fin': '📅 DATE RETOUR PRÉVUE', 'Prix': '💰 PRIX (DT)', 'KM_Debut': '🔢 KM SORTIE'})
+                st.dataframe(sorties_final, use_container_width=True, hide_index=True)
+            else: st.info("Aucun véhicule n'est parti à cette date.")
+        with col_droite:
+            st.markdown("### 🛬 2. VOITURES RETOURNÉES (RETOURS)")
+            if not entrees.empty:
+                entrees['KM Roulé'] = entrees.apply(lambda r: (r['KM_Fin'] - r['KM_Debut']) if r['KM_Fin'] > r['KM_Debut'] else 0, axis=1)
+                entrees['Heure_Retour_Propre'] = entrees['Heure_Fin'].apply(formater_heure_propre)
+                entrees_final = entrees[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Heure_Retour_Propre', 'Lieu_Reception', 'Prix', 'KM_Debut', 'KM_Fin', 'KM Roulé']].rename(columns={'Matricule': '🚘 Matricule', 'Client': '👤 Client / Conducteur', 'Date_Debut': '📅 DATE SORTIE', 'Date_Fin': '📅 DATE RETOUR', 'Heure_Retour_Propre': '🕒 HEURE RETOUR', 'Lieu_Reception': '📍 LIEU DE RETOUR', 'Prix': '💰 PRIX TOTAL (DT)', 'KM_Debut': '🔢 KM SORTIE', 'KM_Fin': '🔢 KM RETOUR', 'KM Roulé': '🔥 KM ROULÉ'})
+                st.dataframe(entrees_final, use_container_width=True, hide_index=True)
+            else: st.info("Aucun retour physique enregistré à cette date.")
+
+# --- TAB 5 : VIDANGES ---
+with tab_vidange:
+    st.markdown("### 🔧 Tableau de bord de Maintenance & Vidanges Automatisé")
+    df_v_base = executer("SELECT * FROM vidanges")
+    if df_v_base is not None and not df_v_base.empty:
+        df_v_base['KM_Dernier_Vidange'] = pd.to_numeric(df_v_base['KM_Dernier_Vidange'], errors='coerce').fillna(0).astype(int)
+        df_v_base['KM_Recent'] = pd.to_numeric(df_v_base['KM_Recent'], errors='coerce').fillna(0).astype(int)
+        df_v_base['KM cerculer'] = df_v_base['KM_Recent'] - df_v_base['KM_Dernier_Vidange']
+        df_v_base['km restant'] = 9000 - df_v_base['KM cerculer']
+        
+        alertes_critiques = df_v_base[df_v_base['km restant'] <= 1500]
+        if not alertes_critiques.empty: st.error(f"⚠️ **ALERTE VIDANGE :** {len(alertes_critiques)} véhicule(s) doivent être vidangés immédiatement !")
+        else: st.success("✅ État de la flotte parfait : aucune vidange urgente.")
+        
+        df_tableau_affichage = df_v_base[['Date_Mise_A_Jour', 'Marque', 'Matricule', 'Date_Dernier_Vidange', 'KM_Dernier_Vidange', 'KM_Recent', 'KM cerculer', 'km restant']].rename(columns={'Date_Mise_A_Jour': 'DATE MIS AJOURS', 'Marque': 'MARQUE', 'Matricule': 'MATRICULE', 'Date_Dernier_Vidange': 'TE DERNIER VIDAN', 'KM_Dernier_Vidange': 'DERNIER VIDA', 'KM_Recent': 'KM RECENT', 'KM cerculer': 'KM cerculer', 'km restant': 'km restant'})
+        
+        def colorer_vidanges(row):
+            val_restant = row['km restant']
+            if val_restant <= 500: return ['background-color: #ef4444; color: white; font-weight: bold;'] * len(row)
+            elif val_restant <= 1500: return ['background-color: #f97316; color: white; font-weight: bold;'] * len(row)
+            return [''] * len(row)
+
+        st.dataframe(df_tableau_affichage.style.apply(colorer_vidanges, axis=1), use_container_width=True, hide_index=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.container(border=True):
+            c_v1, c_v2, c_v3 = st.columns([1.5, 1.5, 2])
+            with c_v1:
+                v_select = st.selectbox("Sélectionner le véhicule à mettre à jour :", df_v_base['Matricule'].tolist())
+                v_info = df_v_base[df_v_base['Matricule'] == v_select].iloc[0]
+                try: init_date_dernier = datetime.strptime(str(v_info['Date_Dernier_Vidange']), "%Y-%m-%d").date()
+                except: init_date_dernier = datetime.now().date()
+                date_dernier_manuel = st.date_input("Date du Dernier Vidange (Manuel) :", value=init_date_dernier)
+            with c_v2:
+                dernier_km_vidange_input = st.number_input("Dernier KM Vidange (Manuel) :", min_value=0, value=int(v_info['KM_Dernier_Vidange']), step=1)
+                nouveau_km_actuel = st.number_input("Kilométrage Actuel / Récent (Manuel) :", min_value=0, value=int(v_info['KM_Recent']), step=1)
+            with c_v3:
+                date_effective = st.date_input("Date effective de l'opération :", datetime.now())
+                action_sync = st.checkbox("Vidange effectuée aujourd'hui (Synchronise le dernier KM et remet à zéro)", value=False)
+            
+            if st.button("💾 ENREGISTRER ET RECALCULER DIRECTEMENT", use_container_width=True):
+                date_operation_str = date_effective.strftime("%Y-%m-%d")
+                date_historique_str = date_dernier_manuel.strftime("%Y-%m-%d")
+                if action_sync:
+                    executer("UPDATE vidanges SET KM_Recent = ?, KM_Dernier_Vidange = ?, Date_Dernier_Vidange = ?, Date_Mise_A_Jour = ? WHERE Matricule = ?", (int(nouveau_km_actuel), int(nouveau_km_actuel), date_operation_str, date_operation_str, v_select), modifier=True)
+                else:
+                    executer("UPDATE vidanges SET KM_Recent = ?, KM_Dernier_Vidange = ?, Date_Dernier_Vidange = ?, Date_Mise_A_Jour = ? WHERE Matricule = ?", (int(nouveau_km_actuel), int(dernier_km_vidange_input), date_historique_str, date_operation_str, v_select), modifier=True)
+                st.success("Calculs mis à jour instantanément !")
+                st.rerun()
+
+# --- TAB 6 : COMPTE CONDUCTEURS / CRM ---
+with tab_crm:
+    st.markdown("### 👥 Banque d'Information des Conducteurs & Profils Clients")
+    c1, c2 = st.columns([5, 4])
+    
+    with c1:
+        st.markdown("#### 🔍 Consultation & Actions")
+        search_query = st.text_input("Rechercher un profil (Nom, Prénom, CIN) :", key="crm_search_field")
+        
+        if search_query:
+            clients_trouves = executer("SELECT * FROM clients WHERE [Nom] LIKE ? OR [Prénom] LIKE ? OR [CIN] LIKE ?", (f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"))
+            
+            if clients_trouves is not None and not clients_trouves.empty:
+                for idx, cli in clients_trouves.iterrows():
+                    cin_client_actuel = str(cli['CIN']).strip()
+                    unique_suffix = f"{idx}_{cin_client_actuel}"
+                    
+                    with st.expander(f"👤 {str(cli['Nom']).upper()} {cli['Prénom']} (CIN: {cin_client_actuel})", expanded=True):
+                        st.write(f"**📞 Téléphone :** `{cli.get('Numéro de téléphone', 'N/A')}` | **🚗 N° Permis :** `{cli.get('N° Permis', 'N/A')}`")
+                        st.write(f"📅 **Délivrance CIN :** `{cli.get('Date Délivrance CIN', 'N/A')}` | 📅 **Délivrance Permis :** `{cli.get('Date Délivrance Permis', 'N/A')}`")
+                        
+                        col_img1, col_img2 = st.columns(2)
+                        with col_img1:
+                            if cli.get('Image CIN'):
+                                try: st.image(base64.b64decode(cli['Image CIN']), caption="Pièce d'identité (CIN)", use_container_width=True)
+                                except: pass
+                        with col_img2:
+                            if cli.get('Image Permis'):
+                                try: st.image(base64.b64decode(cli['Image Permis']), caption="Permis de conduire", use_container_width=True)
+                                except: pass
+                        
+                        st.markdown("---")
+                        col_btn_mod, col_btn_sup = st.columns(2)
+                        
+                        with col_btn_mod:
+                            if st.button(f"✏️ MODIFIER CE PROFIL", key=f"btn_edit_{unique_suffix}"):
+                                st.session_state[f"mode_edition_{unique_suffix}"] = True
+                        
+                        with col_btn_sup:
+                            check_sup = st.checkbox("Confirmer la suppression", key=f"chk_del_{unique_suffix}")
+                            if st.button(f"🗑️ SUPPRIMER CE CLIENT", key=f"btn_del_{unique_suffix}"):
+                                if check_sup:
+                                    executer("DELETE FROM clients WHERE [CIN] = ?", (cin_client_actuel,), modifier=True)
+                                    st.success(f"Client [CIN: {cin_client_actuel}] supprimé définitivement.")
+                                    st.rerun()
+                                else:
+                                    st.warning("Veuillez cocher la case de confirmation avant de supprimer.")
+                        
+                        if st.session_state.get(f"mode_edition_{unique_suffix}", False):
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            with st.form(key=f"form_reel_edit_{unique_suffix}"):
+                                st.markdown("##### 📝 Édition des informations")
+                                e_prenom = st.text_input("Prénom", value=str(cli['Prénom']))
+                                e_nom = st.text_input("Nom", value=str(cli['Nom']))
+                                e_tel = st.text_input("Téléphone", value=str(cli.get('Numéro de téléphone', '')))
+                                e_permis = st.text_input("N° Permis", value=str(cli.get('N° Permis', '')))
+                                
+                                try: e_init_d_cin = datetime.strptime(str(cli.get('Date Délivrance CIN')), "%Y-%m-%d").date()
+                                except: e_init_d_cin = datetime.now().date()
+                                try: e_init_d_per = datetime.strptime(str(cli.get('Date Délivrance Permis')), "%Y-%m-%d").date()
+                                except: e_init_d_per = datetime.now().date()
+                                    
+                                e_d_cin = st.date_input("Date Délivrance CIN", value=e_init_d_cin)
+                                e_d_per = st.date_input("Date Délivrance Permis", value=e_init_d_per)
+                                
+                                f_cin_remplace = st.file_uploader("Remplacer l'image CIN (Optionnel)", type=["png", "jpg", "jpeg"], key=f"file_cin_{unique_suffix}")
+                                f_per_remplace = st.file_uploader("Remplacer l'image Permis (Optionnel)", type=["png", "jpg", "jpeg"], key=f"file_per_{unique_suffix}")
+                                
+                                if st.form_submit_button("✅ METTRE À JOUR"):
+                                    up_sql = "UPDATE clients SET [Prénom]=?, [Nom]=?, [Numéro de téléphone]=?, [N° Permis]=?, [Date Délivrance CIN]=?, [Date Délivrance Permis]=?"
+                                    up_params = [e_prenom, e_nom, e_tel, e_permis, e_d_cin.strftime("%Y-%m-%d"), e_d_per.strftime("%Y-%m-%d")]
+                                    
+                                    if f_cin_remplace:
+                                        up_sql += ", [Image CIN]=?"
+                                        up_params.append(encoder_image_base64(f_cin_remplace))
+                                    if f_per_remplace:
+                                        up_sql += ", [Image Permis]=?"
+                                        up_params.append(encoder_image_base64(f_per_remplace))
+                                        
+                                    up_sql += " WHERE [CIN]=?"
+                                    up_params.append(cin_client_actuel)
+                                    
+                                    executer(up_sql, tuple(up_params), modifier=True)
+                                    st.success("Profil mis à jour !")
+                                    st.session_state[f"mode_edition_{unique_suffix}"] = False
+                                    st.rerun()
+
+    with c2:
+        st.markdown("#### ➕ Ajouter un Nouveau Client")
+        with st.form("form_new_client_crm"):
+            n_prenom = st.text_input("Prénom *")
+            n_nom = st.text_input("Nom *")
+            n_cin = st.text_input("N° CIN *")
+            n_tel = st.text_input("Téléphone")
+            n_permis = st.text_input("N° Permis")
+            n_d_cin = st.date_input("Date Délivrance CIN", value=datetime.now() - timedelta(days=365))
+            n_d_per = st.date_input("Date Délivrance Permis", value=datetime.now() - timedelta(days=365))
+            
+            f_cin_new = st.file_uploader("Image CIN", type=["png", "jpg", "jpeg"])
+            f_per_new = st.file_uploader("Image Permis", type=["png", "jpg", "jpeg"])
+            
+            if st.form_submit_button("⚡ CRÉER LE PROFIL CLIENT"):
+                if n_prenom and n_nom and n_cin:
+                    executer("""
+                        INSERT OR REPLACE INTO clients ([Prénom], [Nom], [CIN], [Numéro de téléphone], [N° Permis], [Date Délivrance CIN], [Date Délivrance Permis], [Image CIN], [Image Permis])
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (n_prenom, n_nom, n_cin, n_tel, n_permis, n_d_cin.strftime("%Y-%m-%d"), n_d_per.strftime("%Y-%m-%d"), encoder_image_base64(f_cin_new), encoder_image_base64(f_per_new)), modifier=True)
+                    st.success("Nouveau client enregistré !")
+                    st.rerun()
+                else:
+                    st.error("Veuillez remplir les champs obligatoires (*)")
 
 # --- TAB 7 : ADMIN ---
 with tab_admin:
@@ -914,11 +1213,13 @@ with tab_admin:
     col_a1, col_a2 = st.columns(2)
     with col_a1:
         if st.button("🗑️ PURGER TOUS LES MOUVEMENTS"):
-            executer("DELETE FROM mouvements", modifier=True)
-            st.success("Tous les mouvements ont été effacés.")
-            st.rerun()
+            if st.checkbox("Confirmer la purge des mouvements"):
+                executer("DELETE FROM mouvements", modifier=True)
+                st.success("Tous les mouvements ont été effacés.")
+                st.rerun()
     with col_a2:
         if st.button("🗑️ RÉINITIALISER LA BASE CLIENTS"):
-            executer("DELETE FROM clients", modifier=True)
-            st.success("La base de données clients a été intégralement vidée.")
-            st.rerun()
+            if st.checkbox("Confirmer la purge des clients"):
+                executer("DELETE FROM clients", modifier=True)
+                st.success("La base clients a été réinitialisée.")
+                st.rerun()
