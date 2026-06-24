@@ -667,14 +667,32 @@ with tab_planning:
                                 df_final_grid.at[idx, key_day] = f"🔵 🛬{data['heure_retour']} {data['client_entrant']} / 🛫{data['heure_sortie']} {data['client_sortant']}"
                             elif data["desc"] != "": df_final_grid.at[idx, key_day] = data["desc"]
 
-            def style_bbnh_theme(val):
-                val_str = str(val)
-                if "● Disponible" in val_str: return "background-color: #ffffff; color: #111827; font-size: 11px; font-weight: 600; text-align: center; border: 1px solid #e5e7eb;"
-                elif "🔵" in val_str: return "background-color: #1d4ed8; color: #ffffff; font-weight: 700; font-size: 10px; border: 2px solid #60a5fa;"
-                elif "🛠️" in val_str: return "background-color: #eab308; color: #1e1b4b; font-weight: 700; font-size: 11px;"
-                elif "🔴" in val_str: return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
-                elif "🟢" in val_str: return "background-color: #16a34a; color: #ffffff; font-weight: 600; font-size: 11px;"
-                return "background-color: #090b0e; color: #ffffff; font-weight: 700; font-size: 12px; border-right: 3px solid #e60000;"
+           def style_bbnh_theme(val):
+    val_str = str(val).lower()
+    
+    # Disponible (blanc)
+    if "disponible" in val_str or "●" in val_str:
+        return "background-color: #ffffff !important; color: #111827 !important; font-size: 11px !important; font-weight: 600 !important; text-align: center !important; border: 1px solid #e5e7eb !important;"
+    
+    # Retour + Départ même jour (bleu)
+    elif "🛬" in val_str and "🛫" in val_str:
+        return "background-color: #1d4ed8 !important; color: #ffffff !important; font-weight: 700 !important; font-size: 10px !important; border: 2px solid #60a5fa !important;"
+    
+    # Garage / Maintenance (jaune)
+    elif "garage" in val_str or "maintenance" in val_str or "🛠️" in val_str:
+        return "background-color: #eab308 !important; color: #1e1b4b !important; font-weight: 700 !important; font-size: 11px !important;"
+    
+    # Réservation (rouge)
+    elif "réservation" in val_str or "reservation" in val_str or "🔴" in val_str:
+        return "background-color: #dc2626 !important; color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;"
+    
+    # Location (vert)
+    elif "location" in val_str or "🟢" in val_str:
+        return "background-color: #16a34a !important; color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;"
+    
+    # Par défaut (noir avec bordure rouge)
+    else:
+        return "background-color: #090b0e !important; color: #ffffff !important; font-weight: 700 !important; font-size: 12px !important; border-right: 3px solid #e60000 !important;"
 
             target_col_str = recherche_date.strftime("%d/%m")
             cols_ordonnees = ['Flotte BBNH']
