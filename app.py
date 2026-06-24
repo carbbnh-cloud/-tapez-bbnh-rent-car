@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, time
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
+# ============================================
 # CONFIGURATION SUPABASE
 # ============================================
 load_dotenv()
@@ -14,9 +15,22 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("⚠️ Variables SUPABASE_URL et SUPABASE_KEY manquantes dans .env")
+    st.markdown("""
+    **Créez un fichier `.env` à la racine avec :**
+    ```
+    SUPABASE_URL=https://xxxxx.supabase.co
+    SUPABASE_KEY=votre_cle
+    ```
+    """)
     st.stop()
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    # Test de connexion
+    test = supabase.table("clients").select("id").limit(1).execute()
+except Exception as e:
+    st.error(f"❌ Erreur de connexion Supabase : {e}")
+    st.stop()
 
 # ============================================
 # CONFIGURATION DE LA PAGE
@@ -88,7 +102,6 @@ div.stButton > button:hover {
 }
 div[data-testid="stDataFrame"] { border: 1px solid #222733 !important; border-radius: 14px !important; }
 
-/* --- STYLE TABLEAU CONTRATS --- */
 .contract-table {
     width: 100%; border-collapse: collapse; background-color: #ffffff;
     color: #333333; border-radius: 8px; overflow: hidden; font-size: 13px;
@@ -128,10 +141,8 @@ div[data-testid="stDataFrame"] { border: 1px solid #222733 !important; border-ra
 """, unsafe_allow_html=True)
 
 # ============================================
-# COUCHE D'ABSTRACTION SUPABASE
-# (Remplace les fonctions SQLite)
+# COUCHE D'ABSTRACTION SUPABASE ROBUSTE
 # ============================================
-
 def encoder_image_base64(file_buffer):
     if file_buffer is None:
         return ""
@@ -140,13 +151,15 @@ def encoder_image_base64(file_buffer):
     except Exception:
         return ""
 
-def sb_select(table: str, columns: str = "*", filters: dict = None, order: str = None, limit: int = None):
-    """SELECT universel"""
+def sb_select(table, columns="*", filters=None, order=None, limit=None):
     try:
         q = supabase.table(table).select(columns)
         if filters:
             for k, v in filters.items():
-                q = q.eq(k, v)
+                if v is None:
+                    q = q.is_(k, None)
+                else:
+                    q = q.eq(k, v)
         if order:
             q = q.order(order, desc=True)
         if limit:
@@ -157,37 +170,37 @@ def sb_select(table: str, columns: str = "*", filters: dict = None, order: str =
         st.error(f"Erreur SELECT {table}: {e}")
         return pd.DataFrame()
 
-def sb_select_like(table: str, columns: str, field: str, pattern: str):
-    """SELECT avec LIKE"""
+def sb_select_like(table, column, pattern):
     try:
-        res = supabase.table(table).select(columns).ilike(field, pattern).execute()
+        res = supabase.table(table).select("*").ilike(column, pattern).execute()
         return pd.DataFrame(res.data) if res.data else pd.DataFrame()
     except Exception as e:
-        st.error(f"Erreur SELECT LIKE {table}: {e}")
+        st.error(f"Erreur LIKE {table}: {e}")
         return pd.DataFrame()
 
-def sb_insert(table: str, data: dict):
-    """INSERT"""
+def sb_insert(table, data):
     try:
-        supabase.table(table).insert(data).execute()
+        # Nettoyer les NaN
+        clean_data = {k: (None if pd.isna(v) else v) for k, v in data.items()}
+        supabase.table(table).insert(clean_data).execute()
         return True
     except Exception as e:
         st.error(f"Erreur INSERT {table}: {e}")
         return False
 
-def sb_upsert(table: str, data: dict, on_conflict: str):
-    """INSERT OR REPLACE (upsert)"""
+def sb_upsert(table, data, on_conflict):
     try:
-        supabase.table(table).upsert(data, on_conflict=on_conflict).execute()
+        clean_data = {k: (None if pd.isna(v) else v) for k, v in data.items()}
+        supabase.table(table).upsert(clean_data, on_conflict=on_conflict).execute()
         return True
     except Exception as e:
         st.error(f"Erreur UPSERT {table}: {e}")
         return False
 
-def sb_update(table: str, data: dict, filters: dict):
-    """UPDATE avec filtres"""
+def sb_update(table, data, filters):
     try:
-        q = supabase.table(table).update(data)
+        clean_data = {k: (None if pd.isna(v) else v) for k, v in data.items()}
+        q = supabase.table(table).update(clean_data)
         for k, v in filters.items():
             q = q.eq(k, v)
         q.execute()
@@ -196,8 +209,7 @@ def sb_update(table: str, data: dict, filters: dict):
         st.error(f"Erreur UPDATE {table}: {e}")
         return False
 
-def sb_delete(table: str, filters: dict):
-    """DELETE avec filtres"""
+def sb_delete(table, filters):
     try:
         q = supabase.table(table).delete()
         for k, v in filters.items():
@@ -208,8 +220,7 @@ def sb_delete(table: str, filters: dict):
         st.error(f"Erreur DELETE {table}: {e}")
         return False
 
-def sb_delete_all(table: str):
-    """DELETE tout"""
+def sb_delete_all(table):
     try:
         supabase.table(table).delete().neq("id", 0).execute()
         return True
@@ -217,23 +228,20 @@ def sb_delete_all(table: str):
         st.error(f"Erreur DELETE ALL {table}: {e}")
         return False
 
-def sb_raw_query(sql: str):
-    """Exécuter du SQL brut via rpc (nécessite une fonction SQL dans Supabase)"""
-    try:
-        supabase.rpc("exec_sql", {"query": sql}).execute()
-        return True
-    except Exception:
-        return False
-
 # ============================================
 # FONCTIONS UTILITAIRES
 # ============================================
-def formater_heure_propre(valeur_excel):
-    if pd.isna(valeur_excel) if not isinstance(valeur_excel, str) else False:
+def formater_heure_propre(valeur):
+    if valeur is None:
         return '00:00'
-    if isinstance(valeur_excel, (datetime, time)):
-        return valeur_excel.strftime('%H:%M')
-    val_str = str(valeur_excel).strip()
+    try:
+        if pd.isna(valeur):
+            return '00:00'
+    except Exception:
+        pass
+    if isinstance(valeur, (datetime, time)):
+        return valeur.strftime('%H:%M')
+    val_str = str(valeur).strip()
     if " " in val_str:
         try:
             val_str = val_str.split(" ")[1]
@@ -244,48 +252,67 @@ def formater_heure_propre(valeur_excel):
         return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
     return '00:00'
 
+def safe_int(val, default=0):
+    try:
+        return int(float(str(val).replace(' ', '').replace(',', '.')))
+    except Exception:
+        return default
+
+def safe_float(val, default=0.0):
+    try:
+        return float(str(val).replace(' ', '').replace(',', '.'))
+    except Exception:
+        return default
+
 # ============================================
 # CHARGEMENT DES DONNÉES
 # ============================================
-df_voitures = sb_select("stock")
-df_c_list = sb_select("clients", columns='"Nom","Prénom","CIN"')
+@st.cache_data(ttl=5)
+def load_data():
+    df_voitures = sb_select("stock")
+    df_c_list = sb_select("clients", columns="nom,prenom,cin")
+    df_mouvs = sb_select("mouvements")
+    df_vidanges = sb_select("vidanges")
+    return df_voitures, df_c_list, df_mouvs, df_vidanges
 
+df_voitures, df_c_list, df_mouvs, df_vidanges = load_data()
+
+# Construction des listes
 liste_clients_opt = ["-- Entrée manuelle --"]
 if not df_c_list.empty:
     for _, row in df_c_list.iterrows():
-        nom = str(row.get('Nom', '')).upper()
-        prenom = str(row.get('Prénom', ''))
-        cin = str(row.get('CIN', ''))
-        liste_clients_opt.append(f"{nom} {prenom} (CIN: {cin})")
+        nom = str(row.get('nom', '')).upper()
+        prenom = str(row.get('prenom', ''))
+        cin = str(row.get('cin', ''))
+        if cin and cin.lower() != 'nan':
+            liste_clients_opt.append(f"{nom} {prenom} (CIN: {cin})")
 
 liste_vehicules_opt = []
 liste_vehicules_complets_opt = []
 if not df_voitures.empty:
     for _, row in df_voitures.iterrows():
-        mat = str(row.get('Matricule', '')).strip()
+        mat = str(row.get('matricule', '')).strip()
         if mat and mat.lower() != 'nan':
             liste_vehicules_opt.append(mat)
-            modele = str(row.get('Modèle', row.get('Marque', 'Voiture')))
+            modele = str(row.get('modele', row.get('marque', 'Voiture')))
             liste_vehicules_complets_opt.append(f"{mat} — {modele}")
 
 # Synchronisation initiale des vidanges
 if not df_voitures.empty:
     for _, car in df_voitures.iterrows():
-        mat = str(car.get('Matricule', '')).strip()
-        marq = str(car.get('Marque', '')).upper()
+        mat = str(car.get('matricule', '')).strip()
+        marq = str(car.get('marque', '')).upper()
         if mat and mat.lower() != 'nan':
-            existing = sb_select("vidanges", filters={"Matricule": mat})
+            existing = sb_select("vidanges", filters={"matricule": mat})
             if existing.empty:
                 sb_upsert("vidanges", {
-                    "Matricule": mat,
-                    "Marque": marq,
-                    "Date_Mise_A_Jour": datetime.now().strftime("%Y-%m-%d"),
-                    "Date_Dernier_Vidange": datetime.now().strftime("%Y-%m-%d"),
-                    "KM_Dernier_Vidange": 0,
-                    "KM_Recent": 0
-                }, on_conflict="Matricule")
-
-df_mouvs = sb_select("mouvements")
+                    "matricule": mat,
+                    "marque": marq,
+                    "date_mise_a_jour": datetime.now().strftime("%Y-%m-%d"),
+                    "date_dernier_vidange": datetime.now().strftime("%Y-%m-%d"),
+                    "km_dernier_vidange": 0,
+                    "km_recent": 0
+                }, on_conflict="matricule")
 
 # ============================================
 # BARRE LATÉRALE (SIDEBAR)
@@ -317,11 +344,21 @@ with st.sidebar:
             try:
                 df_cli = pd.read_excel(f_clients, sheet_name='Base de Données', skiprows=1)
                 df_cli = df_cli.loc[:, ~df_cli.columns.str.contains('^Unnamed')]
-                # Insertion ligne par ligne
+                # Mapping des colonnes Excel → colonnes Supabase
+                col_map = {
+                    'ID Client': 'id_client', 'Prénom': 'prenom', 'Nom': 'nom', 'CIN': 'cin',
+                    'Date Délivrance CIN': 'date_delivrance_cin', 'Lieu  & Date Naissance': 'lieu_date_naissance',
+                    'N° Permis': 'num_permis', 'Date Délivrance Permis': 'date_delivrance_permis',
+                    'Adresse': 'adresse', 'Remarque': 'remarque', 'Numéro de téléphone': 'numero_telephone',
+                    'Image CIN': 'image_cin', 'Image Permis': 'image_permis'
+                }
+                df_cli = df_cli.rename(columns={k: v for k, v in col_map.items() if k in df_cli.columns})
                 for _, row in df_cli.iterrows():
                     data = {k: (None if pd.isna(v) else v) for k, v in row.to_dict().items()}
-                    sb_upsert("clients", data, on_conflict="CIN")
+                    if data.get('cin'):
+                        sb_upsert("clients", data, on_conflict="cin")
                 st.success("Données clients synchronisées !")
+                st.cache_data.clear()
                 st.rerun()
             except Exception as e:
                 st.error(f"Erreur : {e}")
@@ -334,64 +371,62 @@ with st.sidebar:
                 df_stock = df_stock.loc[:, ~df_stock.columns.str.contains('^Unnamed')]
                 df_mouv_raw = df_mouv_raw.loc[:, ~df_mouv_raw.columns.str.contains('^Unnamed')]
 
+                # Mapping stock
+                stock_map = {'Matricule': 'matricule', 'Marque': 'marque', 'Modèle': 'modele', 'Année': 'annee'}
+                df_stock = df_stock.rename(columns={k: v for k, v in stock_map.items() if k in df_stock.columns})
+                if 'marque' in df_stock.columns and 'modele' in df_stock.columns:
+                    df_stock['marque_modele'] = df_stock['marque'].astype(str) + ' ' + df_stock['modele'].astype(str)
+
+                # Mapping mouvements
                 mapping = {}
                 for col in df_mouv_raw.columns:
                     c_clean = str(col).strip().lower().replace("  ", "_").replace("é", "e").replace("è", "e")
-                    if "matri" in c_clean: mapping[col] = "Matricule"
-                    elif "type" in c_clean or "statut" in c_clean: mapping[col] = "Type_Statut"
-                    elif "deb" in c_clean and "heur" not in c_clean: mapping[col] = "Date_Debut"
-                    elif "fin" in c_clean and "heur" not in c_clean: mapping[col] = "Date_Fin"
-                    elif "heur" in c_clean and "deb" in c_clean: mapping[col] = "Heure_Debut"
-                    elif "heur" in c_clean and "fin" in c_clean: mapping[col] = "Heure_Fin"
-                    elif "client" in c_clean or "nom" in c_clean: mapping[col] = "Client"
-                    elif "prix" in c_clean or "montant" in c_clean or "total" in c_clean: mapping[col] = "Prix"
-                    elif "km_deb" in c_clean or "kilometrage_deb" in c_clean: mapping[col] = "KM_Debut"
-                    elif "km_fin" in c_clean or "kilometrage_ret" in c_clean: mapping[col] = "KM_Fin"
-                    elif "lieu" in c_clean: mapping[col] = "Lieu_Reception"
-
+                    if "matri" in c_clean: mapping[col] = "matricule"
+                    elif "type" in c_clean or "statut" in c_clean: mapping[col] = "type_statut"
+                    elif "deb" in c_clean and "heur" not in c_clean: mapping[col] = "date_debut"
+                    elif "fin" in c_clean and "heur" not in c_clean: mapping[col] = "date_fin"
+                    elif "heur" in c_clean and "deb" in c_clean: mapping[col] = "heure_debut"
+                    elif "heur" in c_clean and "fin" in c_clean: mapping[col] = "heure_fin"
+                    elif "client" in c_clean or "nom" in c_clean: mapping[col] = "client"
+                    elif "prix" in c_clean or "montant" in c_clean or "total" in c_clean: mapping[col] = "prix"
+                    elif "km_deb" in c_clean or "kilometrage_deb" in c_clean: mapping[col] = "km_debut"
+                    elif "km_fin" in c_clean or "kilometrage_ret" in c_clean: mapping[col] = "km_fin"
+                    elif "lieu" in c_clean: mapping[col] = "lieu_reception"
                 df_mouv_raw = df_mouv_raw.rename(columns=mapping)
 
                 # Insertion stock
                 for _, row in df_stock.iterrows():
                     data = {k: (None if pd.isna(v) else v) for k, v in row.to_dict().items()}
-                    sb_upsert("stock", data, on_conflict="Matricule")
+                    if data.get('matricule'):
+                        sb_upsert("stock", data, on_conflict="matricule")
 
                 # Purge + insertion mouvements
                 sb_delete_all("mouvements")
                 for _, row in df_mouv_raw.iterrows():
-                    h_d = formater_heure_propre(row.get('Heure_Debut'))
-                    h_f = formater_heure_propre(row.get('Heure_Fin'))
-                    try:
-                        km_d = int(float(str(row.get('KM_Debut', 0)).strip().replace(' ', '')))
-                    except Exception:
-                        km_d = 0
-                    try:
-                        km_f = int(float(str(row.get('KM_Fin', 0)).strip().replace(' ', '')))
-                    except Exception:
-                        km_f = 0
-                    p_raw = row.get('Prix', 0)
-                    try:
-                        p_clean = str(float(p_raw))
-                    except Exception:
-                        p_clean = "0"
+                    h_d = formater_heure_propre(row.get('heure_debut'))
+                    h_f = formater_heure_propre(row.get('heure_fin'))
+                    km_d = safe_int(row.get('km_debut', 0))
+                    km_f = safe_int(row.get('km_fin', 0))
+                    p_clean = str(safe_float(row.get('prix', 0)))
 
                     sb_insert("mouvements", {
-                        "Matricule": str(row.get('Matricule', 'Inconnu')),
-                        "Type_Statut": str(row.get('Type_Statut', 'Location')),
-                        "Date_Debut": str(row.get('Date_Debut', '')),
-                        "Heure_Debut": h_d,
-                        "Date_Fin": str(row.get('Date_Fin', '')),
-                        "Heure_Fin": h_f,
-                        "Client": str(row.get('Client', 'Client')),
-                        "Prix": p_clean,
-                        "Statut_Mouvement": "En cours",
-                        "Caution": "0",
-                        "Reste": p_clean,
-                        "Lieu_Reception": str(row.get('Lieu_Reception', 'Siège')),
-                        "KM_Debut": km_d,
-                        "KM_Fin": km_f
+                        "matricule": str(row.get('matricule', 'Inconnu')),
+                        "type_statut": str(row.get('type_statut', 'Location')),
+                        "date_debut": str(row.get('date_debut', '')),
+                        "heure_debut": h_d,
+                        "date_fin": str(row.get('date_fin', '')),
+                        "heure_fin": h_f,
+                        "client": str(row.get('client', 'Client')),
+                        "prix": p_clean,
+                        "statut_mouvement": "En cours",
+                        "caution": "0",
+                        "reste": p_clean,
+                        "lieu_reception": str(row.get('lieu_reception', 'Siège')),
+                        "km_debut": km_d,
+                        "km_fin": km_f
                     })
                 st.success("Données intégrées avec succès !")
+                st.cache_data.clear()
                 st.rerun()
             except Exception as e:
                 st.error(f"Erreur : {e}")
@@ -402,7 +437,7 @@ with st.sidebar:
 if menu_action == "📝 Nouveau Contrat / Réservation":
     st.sidebar.markdown("### 📝 Éditer une nouvelle fiche")
     nature = st.sidebar.selectbox("Nature : ", ["Contrat Location", "Réservation", "Maintenance / Garage"])
-    vehicule = st.sidebar.selectbox("Véhicule : ", liste_vehicules_opt)
+    vehicule = st.sidebar.selectbox("Véhicule : ", liste_vehicules_opt if liste_vehicules_opt else ["Aucun véhicule"])
     client_b = st.sidebar.selectbox("Client : ", liste_clients_opt)
 
     nom_m = st.sidebar.text_input("Nom & Prénom (Manuel) : ")
@@ -449,42 +484,43 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
         img_cin_b64 = encoder_image_base64(f_cin)
         img_permis_b64 = encoder_image_base64(f_permis)
 
-        if client_b == "-- Entrée manuelle --":
+        if client_b == "-- Entrée manuelle --" and cin_f:
             sb_upsert("clients", {
-                "Nom": nom_f, "CIN": cin_f,
-                "Date Délivrance CIN": dc_m.strftime("%Y-%m-%d"),
-                "N° Permis": permis_m,
-                "Date Délivrance Permis": dp_m.strftime("%Y-%m-%d"),
-                "Image CIN": img_cin_b64, "Image Permis": img_permis_b64
-            }, on_conflict="CIN")
+                "nom": nom_f, "cin": cin_f,
+                "date_delivrance_cin": dc_m.strftime("%Y-%m-%d"),
+                "num_permis": permis_m,
+                "date_delivrance_permis": dp_m.strftime("%Y-%m-%d"),
+                "image_cin": img_cin_b64, "image_permis": img_permis_b64
+            }, on_conflict="cin")
 
         if "Contrat" in nature:
             sb_insert("contrats", {
-                "Num_Contrat": ref, "Matricule": vehicule,
-                "Client_Nom": nom_f, "CIN_Client": cin_f,
-                "Date_Debut": str_d1, "Heure_Debut": str_t1,
-                "Date_Fin": str_d2, "Heure_Fin": str_t2,
-                "Tarif_Jour": str(prix_unitaire),
-                "Montant_Total": str(montant_total),
-                "Statut_Contrat": "Actif"
+                "num_contrat": ref, "matricule": vehicule,
+                "client_nom": nom_f, "cin_client": cin_f,
+                "date_debut": str_d1, "heure_debut": str_t1,
+                "date_fin": str_d2, "heure_fin": str_t2,
+                "tarif_jour": str(prix_unitaire),
+                "montant_total": str(montant_total),
+                "statut_contrat": "Actif"
             })
 
         sb_insert("mouvements", {
-            "Matricule": vehicule, "Type_Statut": text_type,
-            "Date_Debut": str_d1, "Heure_Debut": str_t1,
-            "Date_Fin": str_d2, "Heure_Fin": str_t2,
-            "Client": nom_f, "Prix": str(montant_total),
-            "Statut_Mouvement": "En cours",
-            "Caution": str(caution), "Reste": str(reste),
-            "Lieu_Reception": l_reception, "No_Vol": no_vol,
-            "Info_Note": info_note, "KM_Debut": int(km_debut), "KM_Fin": 0
+            "matricule": vehicule, "type_statut": text_type,
+            "date_debut": str_d1, "heure_debut": str_t1,
+            "date_fin": str_d2, "heure_fin": str_t2,
+            "client": nom_f, "prix": str(montant_total),
+            "statut_mouvement": "En cours",
+            "caution": str(caution), "reste": str(reste),
+            "lieu_reception": l_reception, "no_vol": no_vol,
+            "info_note": info_note, "km_debut": int(km_debut), "km_fin": 0
         })
 
         sb_update("vidanges", {
-            "KM_Recent": int(km_debut), "Date_Mise_A_Jour": str_d1
-        }, {"Matricule": vehicule})
+            "km_recent": int(km_debut), "date_mise_a_jour": str_d1
+        }, {"matricule": vehicule})
 
         st.success("Fiche créée avec succès !")
+        st.cache_data.clear()
         st.rerun()
 
 elif menu_action == "🚗 Ajouter un Véhicule à la Flotte":
@@ -498,16 +534,17 @@ elif menu_action == "🚗 Ajouter un Véhicule à la Flotte":
             if nouveau_matricule and nouvelle_marque and nouveau_modele:
                 combinaison_modele = f"{nouvelle_marque} {nouveau_modele}"
                 sb_upsert("stock", {
-                    "Matricule": nouveau_matricule, "Marque": nouvelle_marque,
-                    "Modèle": nouveau_modele, "Année": nouvelle_annee,
-                    "Marque/Model": combinaison_modele
-                }, on_conflict="Matricule")
+                    "matricule": nouveau_matricule, "marque": nouvelle_marque,
+                    "modele": nouveau_modele, "annee": nouvelle_annee,
+                    "marque_modele": combinaison_modele
+                }, on_conflict="matricule")
                 sb_upsert("vidanges", {
-                    "Matricule": nouveau_matricule, "Marque": nouvelle_marque.upper(),
-                    "Date_Mise_A_Jour": datetime.now().strftime("%Y-%m-%d"),
-                    "Date_Dernier_Vidange": datetime.now().strftime("%Y-%m-%d")
-                }, on_conflict="Matricule")
+                    "matricule": nouveau_matricule, "marque": nouvelle_marque.upper(),
+                    "date_mise_a_jour": datetime.now().strftime("%Y-%m-%d"),
+                    "date_dernier_vidange": datetime.now().strftime("%Y-%m-%d")
+                }, on_conflict="matricule")
                 st.success("Véhicule enregistré !")
+                st.cache_data.clear()
                 st.rerun()
 
 elif menu_action == "🗑️ Supprimer un Véhicule de la Flotte":
@@ -518,59 +555,60 @@ elif menu_action == "🗑️ Supprimer un Véhicule de la Flotte":
             if st.form_submit_button("💥 SUPPRIMER LE VÉHICULE"):
                 if confirmer_suppression:
                     matricule_pure = str(vehicule_a_retirer).split(" — ")[0].strip()
-                    sb_delete("stock", {"Matricule": matricule_pure})
-                    sb_delete("vidanges", {"Matricule": matricule_pure})
+                    sb_delete("stock", {"matricule": matricule_pure})
+                    sb_delete("vidanges", {"matricule": matricule_pure})
                     st.success("Véhicule retiré.")
+                    st.cache_data.clear()
                     st.rerun()
 
 elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
-    df_mouv_actifs = sb_select("mouvements", filters={"Statut_Mouvement": "En cours"})
+    df_mouv_actifs = sb_select("mouvements", filters={"statut_mouvement": "En cours"})
     if not df_mouv_actifs.empty:
-        liste_mouv_mod = [f"ID: {r['id']} | {r['Matricule']} — {r['Client']}" for _, r in df_mouv_actifs.iterrows()]
+        liste_mouv_mod = [f"ID: {r['id']} | {r['matricule']} — {r['client']}" for _, r in df_mouv_actifs.iterrows()]
         mouv_selectionne = st.sidebar.selectbox("Sélectionner le dossier à éditer :", liste_mouv_mod)
         id_to_edit = int(mouv_selectionne.split(" | ")[0].replace("ID: ", "").strip())
         row_init = df_mouv_actifs[df_mouv_actifs['id'] == id_to_edit].iloc[0]
 
-        df_cli_spec = sb_select("clients", filters={"Nom": str(row_init['Client'])})
+        df_cli_spec = sb_select("clients", filters={"nom": str(row_init['client'])})
         row_cli_init = df_cli_spec.iloc[0].to_dict() if not df_cli_spec.empty else {}
 
         try:
-            init_date_deb = datetime.strptime(str(row_init['Date_Debut']), "%Y-%m-%d").date()
+            init_date_deb = datetime.strptime(str(row_init['date_debut']), "%Y-%m-%d").date()
         except Exception:
             init_date_deb = datetime.now().date()
         try:
-            init_date_fin = datetime.strptime(str(row_init['Date_Fin']), "%Y-%m-%d").date()
+            init_date_fin = datetime.strptime(str(row_init['date_fin']), "%Y-%m-%d").date()
         except Exception:
             init_date_fin = datetime.now().date()
         try:
-            init_time_deb = datetime.strptime(formater_heure_propre(row_init['Heure_Debut']), "%H:%M").time()
+            init_time_deb = datetime.strptime(formater_heure_propre(row_init['heure_debut']), "%H:%M").time()
         except Exception:
             init_time_deb = time(9, 0)
         try:
-            init_time_fin = datetime.strptime(formater_heure_propre(row_init['Heure_Fin']), "%H:%M").time()
+            init_time_fin = datetime.strptime(formater_heure_propre(row_init['heure_fin']), "%H:%M").time()
         except Exception:
             init_time_fin = time(12, 0)
 
         try:
-            init_date_cin = datetime.strptime(str(row_cli_init.get('Date Délivrance CIN')), "%Y-%m-%d").date()
+            init_date_cin = datetime.strptime(str(row_cli_init.get('date_delivrance_cin')), "%Y-%m-%d").date()
         except Exception:
             init_date_cin = datetime.now().date()
         try:
-            init_date_permis = datetime.strptime(str(row_cli_init.get('Date Délivrance Permis')), "%Y-%m-%d").date()
+            init_date_permis = datetime.strptime(str(row_cli_init.get('date_delivrance_permis')), "%Y-%m-%d").date()
         except Exception:
             init_date_permis = datetime.now().date()
 
         st.sidebar.markdown(f"### ⚙️ Édition Totale du Dossier #{id_to_edit}")
         mod_nature = st.sidebar.selectbox("Changer de Nature : ", ["Location", "Réservation", "Maintenance / Garage"],
-                                          index=["location", "réservation", "maintenance / garage"].index(str(row_init['Type_Statut']).lower()) if str(row_init['Type_Statut']).lower() in ["location", "réservation", "maintenance / garage"] else 0)
-        idx_v_init = liste_vehicules_opt.index(str(row_init['Matricule']).strip()) if str(row_init['Matricule']).strip() in liste_vehicules_opt else 0
+                                          index=["location", "réservation", "maintenance / garage"].index(str(row_init['type_statut']).lower()) if str(row_init['type_statut']).lower() in ["location", "réservation", "maintenance / garage"] else 0)
+        idx_v_init = liste_vehicules_opt.index(str(row_init['matricule']).strip()) if str(row_init['matricule']).strip() in liste_vehicules_opt else 0
         mod_vehicule = st.sidebar.selectbox("Changer de véhicule : ", liste_vehicules_opt, index=idx_v_init)
 
         st.sidebar.markdown("👤 **Informations Conducteur**")
-        mod_client = st.sidebar.text_input("Nom & Prénom du Conducteur : ", value=str(row_init['Client']))
-        mod_cin = st.sidebar.text_input("N° CIN : ", value=str(row_cli_init.get('CIN', '')))
+        mod_client = st.sidebar.text_input("Nom & Prénom du Conducteur : ", value=str(row_init['client']))
+        mod_cin = st.sidebar.text_input("N° CIN : ", value=str(row_cli_init.get('cin', '')))
         mod_date_cin = st.sidebar.date_input("Date de Délivrance CIN : ", init_date_cin)
-        mod_permis = st.sidebar.text_input("N° Permis de Conduire : ", value=str(row_cli_init.get('N° Permis', '')))
+        mod_permis = st.sidebar.text_input("N° Permis de Conduire : ", value=str(row_cli_init.get('num_permis', '')))
         mod_date_permis = st.sidebar.date_input("Date Délivrance Permis : ", init_date_permis)
         mod_f_cin = st.sidebar.file_uploader("Remplacer le fichier CIN : ", type=["png", "jpg", "jpeg", "pdf"])
         mod_f_permis = st.sidebar.file_uploader("Remplacer le fichier Permis : ", type=["png", "jpg", "jpeg", "pdf"])
@@ -592,63 +630,65 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
             mod_nbr_jours = 1
         st.sidebar.markdown(f"**🔢 Durée recalculée :** `{mod_nbr_jours} jour(s)`")
 
-        df_contrat_spec = sb_select("contrats", columns='"Tarif_Jour"', filters={"Num_Contrat": str(id_to_edit)})
+        df_contrat_spec = sb_select("contrats", columns="tarif_jour", filters={"num_contrat": str(id_to_edit)})
         init_tarif_unitaire = 100
         if not df_contrat_spec.empty:
             try:
-                init_tarif_unitaire = int(float(df_contrat_spec.iloc[0]['Tarif_Jour']))
+                init_tarif_unitaire = int(float(df_contrat_spec.iloc[0]['tarif_jour']))
             except Exception:
                 pass
 
         mod_prix_unitaire = st.sidebar.number_input("💰 Prix Unitaire / Jour (DT) : ", min_value=0, value=init_tarif_unitaire, key="mod_pu")
         mod_total_auto = mod_nbr_jours * mod_prix_unitaire
         mod_prix = st.sidebar.number_input("Prix Total Évalué (DT) : ", value=int(mod_total_auto), key="mod_tot")
-        mod_caution = st.sidebar.number_input("Caution (DT) : ", value=int(float(str(row_init['Caution']).replace(' ', '')) or 0), key="mod_cau")
+        mod_caution = st.sidebar.number_input("Caution (DT) : ", value=safe_int(row_init.get('caution', 0)), key="mod_cau")
         mod_reste = mod_prix - mod_caution
         st.sidebar.markdown(f"**🔴 Reste à payer recalculé :** `{mod_reste} DT`")
 
         st.sidebar.markdown("---")
-        mod_lieu = st.sidebar.text_input("Lieu de Réception : ", value=str(row_init.get('Lieu_Reception', 'Siège Monastir')))
-        mod_vol = st.sidebar.text_input("N° Vol : ", value=str(row_init.get('No_Vol', '')))
-        mod_km_deb = st.sidebar.number_input("Kilométrage Départ : ", min_value=0, value=int(row_init.get('KM_Debut', 0)))
-        mod_note = st.sidebar.text_area("Note Interne : ", value=str(row_init.get('Info_Note', '')))
+        mod_lieu = st.sidebar.text_input("Lieu de Réception : ", value=str(row_init.get('lieu_reception', 'Siège Monastir')))
+        mod_vol = st.sidebar.text_input("N° Vol : ", value=str(row_init.get('no_vol', '')))
+        mod_km_deb = st.sidebar.number_input("Kilométrage Départ : ", min_value=0, value=safe_int(row_init.get('km_debut', 0)))
+        mod_note = st.sidebar.text_area("Note Interne : ", value=str(row_init.get('info_note', '')))
 
         if st.sidebar.button("💾 ENREGISTRER ABSOLUMENT TOUT"):
             str_mod_d1, str_mod_d2 = mod_d1.strftime("%Y-%m-%d"), mod_d2.strftime("%Y-%m-%d")
             str_mod_t1, str_mod_t2 = mod_t1.strftime("%H:%M"), mod_t2.strftime("%H:%M")
 
-            if mod_f_cin:
-                sb_update("clients", {"Image CIN": encoder_image_base64(mod_f_cin)}, {"CIN": mod_cin})
-            if mod_f_permis:
-                sb_update("clients", {"Image Permis": encoder_image_base64(mod_f_permis)}, {"CIN": mod_cin})
+            if mod_f_cin and mod_cin:
+                sb_update("clients", {"image_cin": encoder_image_base64(mod_f_cin)}, {"cin": mod_cin})
+            if mod_f_permis and mod_cin:
+                sb_update("clients", {"image_permis": encoder_image_base64(mod_f_permis)}, {"cin": mod_cin})
 
-            sb_update("clients", {
-                "Nom": mod_client,
-                "Date Délivrance CIN": mod_date_cin.strftime("%Y-%m-%d"),
-                "N° Permis": mod_permis,
-                "Date Délivrance Permis": mod_date_permis.strftime("%Y-%m-%d")
-            }, {"CIN": mod_cin})
+            if mod_cin:
+                sb_update("clients", {
+                    "nom": mod_client,
+                    "date_delivrance_cin": mod_date_cin.strftime("%Y-%m-%d"),
+                    "num_permis": mod_permis,
+                    "date_delivrance_permis": mod_date_permis.strftime("%Y-%m-%d")
+                }, {"cin": mod_cin})
 
             sb_update("mouvements", {
-                "Matricule": mod_vehicule, "Type_Statut": mod_nature, "Client": mod_client,
-                "Date_Debut": str_mod_d1, "Heure_Debut": str_mod_t1,
-                "Date_Fin": str_mod_d2, "Heure_Fin": str_mod_t2,
-                "Prix": str(mod_prix), "Caution": str(mod_caution), "Reste": str(mod_reste),
-                "Lieu_Reception": mod_lieu, "No_Vol": mod_vol,
-                "Info_Note": mod_note, "KM_Debut": int(mod_km_deb)
+                "matricule": mod_vehicule, "type_statut": mod_nature, "client": mod_client,
+                "date_debut": str_mod_d1, "heure_debut": str_mod_t1,
+                "date_fin": str_mod_d2, "heure_fin": str_mod_t2,
+                "prix": str(mod_prix), "caution": str(mod_caution), "reste": str(mod_reste),
+                "lieu_reception": mod_lieu, "no_vol": mod_vol,
+                "info_note": mod_note, "km_debut": int(mod_km_deb)
             }, {"id": id_to_edit})
 
             sb_update("vidanges", {
-                "KM_Recent": int(mod_km_deb), "Date_Mise_A_Jour": str_mod_d1
-            }, {"Matricule": mod_vehicule})
+                "km_recent": int(mod_km_deb), "date_mise_a_jour": str_mod_d1
+            }, {"matricule": mod_vehicule})
 
             st.success("Toutes les données ont été mises à jour avec succès !")
+            st.cache_data.clear()
             st.rerun()
 
 elif menu_action == "❌ Supprimer une opération":
-    df_mouv_actifs = sb_select("mouvements", filters={"Statut_Mouvement": "En cours"})
+    df_mouv_actifs = sb_select("mouvements", filters={"statut_mouvement": "En cours"})
     if not df_mouv_actifs.empty:
-        liste_mouv_del = [f"ID: {r['id']} | {r['Matricule']} — {r['Client']}" for _, r in df_mouv_actifs.iterrows()]
+        liste_mouv_del = [f"ID: {r['id']} | {r['matricule']} — {r['client']}" for _, r in df_mouv_actifs.iterrows()]
         with st.sidebar.form("form_bbnh_delete_mouv"):
             mouv_selectionne = st.selectbox("Choisir l'opération à détruire : ", liste_mouv_del)
             confirmer_action = st.checkbox("Confirmer la suppression")
@@ -657,6 +697,7 @@ elif menu_action == "❌ Supprimer une opération":
                     id_to_delete = int(mouv_selectionne.split(" | ")[0].replace("ID: ", "").strip())
                     sb_delete("mouvements", {"id": id_to_delete})
                     st.success("Opération effacée !")
+                    st.cache_data.clear()
                     st.rerun()
 
 # ============================================
@@ -682,25 +723,24 @@ with st.container(border=True):
         if search_date_debut > search_date_fin:
             st.error("⚠️ La date de sortie ne peut pas être supérieure à la date de retour.")
         else:
-            # Récupérer les matricules indisponibles
-            df_mouv_encours = sb_select("mouvements", filters={"Statut_Mouvement": "En cours"})
+            df_mouv_encours = sb_select("mouvements", filters={"statut_mouvement": "En cours"})
             mat_indispo = set()
             if not df_mouv_encours.empty:
                 for _, mv in df_mouv_encours.iterrows():
                     try:
-                        d_deb = pd.to_datetime(mv['Date_Debut'], errors='coerce').date()
-                        d_fin = pd.to_datetime(mv['Date_Fin'], errors='coerce').date()
-                        if d_deb <= str_s_end and d_fin >= str_s_start:
-                            mat_indispo.add(str(mv['Matricule']).strip())
+                        d_deb = pd.to_datetime(mv['date_debut'], errors='coerce').date()
+                        d_fin = pd.to_datetime(mv['date_fin'], errors='coerce').date()
+                        if d_deb <= search_date_fin.date() and d_fin >= search_date_debut.date():
+                            mat_indispo.add(str(mv['matricule']).strip())
                     except Exception:
                         pass
 
-            df_disponibles = df_voitures[~df_voitures['Matricule'].astype(str).str.strip().isin(mat_indispo)] if not df_voitures.empty else pd.DataFrame()
+            df_disponibles = df_voitures[~df_voitures['matricule'].astype(str).str.strip().isin(mat_indispo)] if not df_voitures.empty else pd.DataFrame()
 
             if not df_disponibles.empty:
                 st.markdown(f"##### 🚗 {len(df_disponibles)} Véhicule(s) disponible(s) du `{str_s_start}` au `{str_s_end}` :")
-                df_disp_aff = df_disponibles[['Matricule', 'Marque', 'Modèle', 'Année']].rename(
-                    columns={'Matricule': '🚘 Matricule / Plaque', 'Marque': 'Marque', 'Modèle': 'Modèle', 'Année': 'Année'}
+                df_disp_aff = df_disponibles[['matricule', 'marque', 'modele', 'annee']].rename(
+                    columns={'matricule': '🚘 Matricule / Plaque', 'marque': 'Marque', 'modele': 'Modèle', 'annee': 'Année'}
                 )
                 st.dataframe(df_disp_aff, use_container_width=True, hide_index=True)
             else:
@@ -733,15 +773,15 @@ with tab_planning:
 
     array_jours = [date_base + timedelta(days=i) for i in range(365)]
     nom_colonnes = [j.strftime("%d/%m") for j in array_jours]
-    df_voitures_valides = df_voitures[df_voitures['Matricule'].notna() & (df_voitures['Matricule'].astype(str).str.strip().str.lower() != 'nan')] if not df_voitures.empty else pd.DataFrame()
+    df_voitures_valides = df_voitures[df_voitures['matricule'].notna() & (df_voitures['matricule'].astype(str).str.strip().str.lower() != 'nan')] if not df_voitures.empty else pd.DataFrame()
 
     if not df_voitures_valides.empty:
         build_matrix = []
         for _, car in df_voitures_valides.iterrows():
-            immat = str(car.get('Matricule', '')).strip()
+            immat = str(car.get('matricule', '')).strip()
             if vehicule_recherche != "-- Toutes les voitures --" and immat != vehicule_recherche:
                 continue
-            modele = str(car.get('Modèle', car.get('Marque', 'Véhicule')))
+            modele = str(car.get('modele', car.get('marque', 'Véhicule')))
             ligne = {"Flotte BBNH": f"🚘 {modele} — [{immat}]"}
             for col_j in nom_colonnes:
                 ligne[col_j] = "● Disponible"
@@ -752,17 +792,17 @@ with tab_planning:
             if not df_mouvs.empty and not df_final_grid.empty:
                 suivi_jours = {}
                 for _, mv in df_mouvs.iterrows():
-                    if pd.isna(mv.get('Matricule')) or pd.isna(mv.get('Date_Debut')) or pd.isna(mv.get('Date_Fin')):
+                    if pd.isna(mv.get('matricule')) or pd.isna(mv.get('date_debut')) or pd.isna(mv.get('date_fin')):
                         continue
-                    m_v = str(mv['Matricule']).strip()
-                    s_v = str(mv['Type_Statut']).strip().lower()
-                    client_v = str(mv['Client']).strip()
-                    h_deb_label = formater_heure_propre(mv.get('Heure_Debut'))
-                    h_fin_label = formater_heure_propre(mv.get('Heure_Fin'))
+                    m_v = str(mv['matricule']).strip()
+                    s_v = str(mv['type_statut']).strip().lower()
+                    client_v = str(mv['client']).strip()
+                    h_deb_label = formater_heure_propre(mv.get('heure_debut'))
+                    h_fin_label = formater_heure_propre(mv.get('heure_fin'))
 
                     try:
-                        d_debut_mv = pd.to_datetime(mv['Date_Debut'], errors='coerce', format='mixed').date()
-                        d_fin_mv = pd.to_datetime(mv['Date_Fin'], errors='coerce', format='mixed').date()
+                        d_debut_mv = pd.to_datetime(mv['date_debut'], errors='coerce', format='mixed').date()
+                        d_fin_mv = pd.to_datetime(mv['date_fin'], errors='coerce', format='mixed').date()
                         if m_v not in suivi_jours:
                             suivi_jours[m_v] = {}
 
@@ -846,47 +886,41 @@ with tab_contrats:
         """
 
         for _, row in df_contrats_list.iterrows():
-            matricule = str(row['Matricule'])
-            client = str(row['Client'])
+            matricule = str(row['matricule'])
+            client = str(row['client'])
 
-            df_tel = sb_select("clients", columns='"Numéro de téléphone"', filters={"Nom": client})
-            tel = df_tel.iloc[0]['Numéro de téléphone'] if df_tel is not None and not df_tel.empty else "N/A"
+            df_tel = sb_select("clients", columns="numero_telephone", filters={"nom": client})
+            tel = df_tel.iloc[0]['numero_telephone'] if df_tel is not None and not df_tel.empty else "N/A"
 
             try:
-                d_dep = datetime.strptime(row['Date_Debut'], "%Y-%m-%d").strftime("%d/%m/%Y")
-                d_ret = datetime.strptime(row['Date_Fin'], "%Y-%m-%d").strftime("%d/%m/%Y")
-                jours = (datetime.strptime(row['Date_Fin'], "%Y-%m-%d") - datetime.strptime(row['Date_Debut'], "%Y-%m-%d")).days
+                d_dep = datetime.strptime(row['date_debut'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                d_ret = datetime.strptime(row['date_fin'], "%Y-%m-%d").strftime("%d/%m/%Y")
+                jours = (datetime.strptime(row['date_fin'], "%Y-%m-%d") - datetime.strptime(row['date_debut'], "%Y-%m-%d")).days
                 if jours <= 0:
                     jours = 1
             except Exception:
-                d_dep = row['Date_Debut']
-                d_ret = row['Date_Fin']
+                d_dep = row['date_debut']
+                d_ret = row['date_fin']
                 jours = "?"
 
-            h_dep = row['Heure_Debut']
-            h_ret = row['Heure_Fin']
+            h_dep = row['heure_debut']
+            h_ret = row['heure_fin']
 
             try:
-                montant = f"{float(row['Prix']):,.3f}"
+                montant = f"{float(row['prix']):,.3f}"
             except Exception:
                 montant = "0.000"
 
             try:
-                reste_val = float(row['Reste'])
+                reste_val = float(row['reste'])
             except Exception:
                 reste_val = 0.0
 
             reste_style = "status-paid" if reste_val <= 0 else "status-pending"
             reste_text = "PAYÉ" if reste_val <= 0 else f"{reste_val:,.3f} DT"
 
-            try:
-                km_s = int(row['KM_Debut'])
-            except Exception:
-                km_s = 0
-            try:
-                km_r = int(row['KM_Fin'])
-            except Exception:
-                km_r = 0
+            km_s = safe_int(row.get('km_debut', 0))
+            km_r = safe_int(row.get('km_fin', 0))
 
             km_ess_s = f"{km_s // 100} Km/Ess"
             km_j_s = f"{km_s // 200} Km/j"
@@ -923,7 +957,7 @@ with tab_contrats:
                     <td>
                         <div style="background:#f1f3f5; padding:5px; border-radius:4px; font-size:10px;">
                             <span style="color:green;">✔</span><br>
-                            {float(row.get('Caution', 0)):,.3f} DT
+                            {safe_float(row.get('caution', 0)):,.3f} DT
                         </div>
                     </td>
                     <td>
@@ -960,9 +994,9 @@ with tab_contrats:
 # --- TAB 3 : RECEPTION LOGISTIQUE ---
 with tab_logistique:
     st.markdown("### 🔑 Terminal de Restitution et Clôture")
-    df_actifs = sb_select("mouvements", filters={"Statut_Mouvement": "En cours"})
+    df_actifs = sb_select("mouvements", filters={"statut_mouvement": "En cours"})
     if df_actifs is not None and not df_actifs.empty:
-        choix_actifs = [f"ID: {r['id']} | {r['Matricule']} — {r['Client']}" for _, r in df_actifs.iterrows()]
+        choix_actifs = [f"ID: {r['id']} | {r['matricule']} — {r['client']}" for _, r in df_actifs.iterrows()]
         col_list, col_details = st.columns([1, 1])
         with col_list:
             target_v = st.selectbox("Sélectionner le véhicule rentrant : ", choix_actifs)
@@ -971,30 +1005,29 @@ with tab_logistique:
             l_retour = st.text_input("Lieu de retour effectif : ", value="Siège Monastir")
             id_mouv_temp = int(target_v.split(" | ")[0].replace("ID: ", "").strip()) if target_v else 0
             km_dep_de_base = 0
+            res_dep = pd.DataFrame()
             if id_mouv_temp > 0:
                 res_dep = df_actifs[df_actifs['id'] == id_mouv_temp]
                 if not res_dep.empty:
-                    try:
-                        km_dep_de_base = int(float(str(res_dep.iloc[0].get('KM_Debut', 0)).replace(' ', '')))
-                    except Exception:
-                        km_dep_de_base = 0
+                    km_dep_de_base = safe_int(res_dep.iloc[0].get('km_debut', 0))
             km_fin = st.number_input("Kilométrage au Retour : ", min_value=km_dep_de_base, value=km_dep_de_base, step=1)
 
             if st.button("✅ VALIDATION DU RETOUR", use_container_width=True):
                 id_mouv = target_v.split(" | ")[0].replace("ID: ", "").strip()
                 str_t_reel = t_reel.strftime("%H:%M")
-                vehicule_rentre = str(res_dep.iloc[0].get('Matricule'))
+                vehicule_rentre = str(res_dep.iloc[0].get('matricule'))
                 sb_update("mouvements", {
-                    "Statut_Mouvement": "Retourné",
-                    "Date_Fin": d_reel.strftime("%Y-%m-%d"),
-                    "Heure_Fin": str_t_reel,
-                    "Lieu_Reception": l_retour,
-                    "KM_Fin": int(km_fin)
+                    "statut_mouvement": "Retourné",
+                    "date_fin": d_reel.strftime("%Y-%m-%d"),
+                    "heure_fin": str_t_reel,
+                    "lieu_reception": l_retour,
+                    "km_fin": int(km_fin)
                 }, {"id": int(id_mouv)})
                 sb_update("vidanges", {
-                    "KM_Recent": int(km_fin), "Date_Mise_A_Jour": d_reel.strftime("%Y-%m-%d")
-                }, {"Matricule": vehicule_rentre})
+                    "km_recent": int(km_fin), "date_mise_a_jour": d_reel.strftime("%Y-%m-%d")
+                }, {"matricule": vehicule_rentre})
                 st.success("Le retour a été validé et mis à jour pour le suivi des vidanges !")
+                st.cache_data.clear()
                 st.rerun()
 
         with col_details:
@@ -1003,7 +1036,7 @@ with tab_logistique:
                 row_sel = df_actifs[df_actifs['id'] == id_sel].iloc[0]
                 diff_km = int(km_fin) - int(km_dep_de_base)
                 st.markdown(f"**📊 Distance Parcourue :** <span style='color:#4ade80; font-weight:bold; font-size:22px;'>{diff_km} KM</span>", unsafe_allow_html=True)
-                st.write(f"**Reste dû :** {row_sel.get('Reste', '0')} DT")
+                st.write(f"**Reste dû :** {row_sel.get('reste', '0')} DT")
     else:
         st.info("Aucun déplacement en cours.")
 
@@ -1013,11 +1046,11 @@ with tab_analytics:
     day_target = st.date_input("Sélectionner la journée d'analyse :", datetime.now())
     if df_mouvs is not None and not df_mouvs.empty:
         df_stats = df_mouvs.copy()
-        df_stats['Clean_D'] = pd.to_datetime(df_stats['Date_Debut'], errors='coerce', format='mixed').dt.date
-        df_stats['Clean_F'] = pd.to_datetime(df_stats['Date_Fin'], errors='coerce', format='mixed').dt.date
-        df_stats['KM_Debut'] = pd.to_numeric(df_stats['KM_Debut'], errors='coerce').fillna(0).astype(int)
-        df_stats['KM_Fin'] = pd.to_numeric(df_stats['KM_Fin'], errors='coerce').fillna(0).astype(int)
-        df_stats['Val_Prix'] = df_stats['Prix'].astype(str).str.replace(' ', '').str.replace('DT', '').str.replace(',', '.')
+        df_stats['Clean_D'] = pd.to_datetime(df_stats['date_debut'], errors='coerce', format='mixed').dt.date
+        df_stats['Clean_F'] = pd.to_datetime(df_stats['date_fin'], errors='coerce', format='mixed').dt.date
+        df_stats['km_debut'] = pd.to_numeric(df_stats['km_debut'], errors='coerce').fillna(0).astype(int)
+        df_stats['km_fin'] = pd.to_numeric(df_stats['km_fin'], errors='coerce').fillna(0).astype(int)
+        df_stats['Val_Prix'] = df_stats['prix'].astype(str).str.replace(' ', '').str.replace('DT', '').str.replace(',', '.')
         df_stats['Val_Prix'] = pd.to_numeric(df_stats['Val_Prix'], errors='coerce').fillna(0.0)
 
         sorties = df_stats[df_stats['Clean_D'] == day_target]
@@ -1036,24 +1069,24 @@ with tab_analytics:
         with col_gauche:
             st.markdown("### 🛫 1. VOITURES SORTIES (DÉPARTS)")
             if not sorties.empty:
-                sorties_final = sorties[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Prix', 'KM_Debut']].rename(
-                    columns={'Matricule': '🚘 Matricule', 'Client': '👤 Client / Conducteur',
-                             'Date_Debut': '📅 DATE SORTIE', 'Date_Fin': '📅 DATE RETOUR PRÉVUE',
-                             'Prix': '💰 PRIX (DT)', 'KM_Debut': '🔢 KM SORTIE'})
+                sorties_final = sorties[['matricule', 'client', 'date_debut', 'date_fin', 'prix', 'km_debut']].rename(
+                    columns={'matricule': '🚘 Matricule', 'client': '👤 Client / Conducteur',
+                             'date_debut': '📅 DATE SORTIE', 'date_fin': '📅 DATE RETOUR PRÉVUE',
+                             'prix': '💰 PRIX (DT)', 'km_debut': '🔢 KM SORTIE'})
                 st.dataframe(sorties_final, use_container_width=True, hide_index=True)
             else:
                 st.info("Aucun véhicule n'est parti à cette date.")
         with col_droite:
             st.markdown("### 🛬 2. VOITURES RETOURNÉES (RETOURS)")
             if not entrees.empty:
-                entrees['KM Roulé'] = entrees.apply(lambda r: (r['KM_Fin'] - r['KM_Debut']) if r['KM_Fin'] > r['KM_Debut'] else 0, axis=1)
-                entrees['Heure_Retour_Propre'] = entrees['Heure_Fin'].apply(formater_heure_propre)
-                entrees_final = entrees[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Heure_Retour_Propre', 'Lieu_Reception', 'Prix', 'KM_Debut', 'KM_Fin', 'KM Roulé']].rename(
-                    columns={'Matricule': '🚘 Matricule', 'Client': '👤 Client / Conducteur',
-                             'Date_Debut': '📅 DATE SORTIE', 'Date_Fin': '📅 DATE RETOUR',
-                             'Heure_Retour_Propre': '🕒 HEURE RETOUR', 'Lieu_Reception': '📍 LIEU DE RETOUR',
-                             'Prix': '💰 PRIX TOTAL (DT)', 'KM_Debut': '🔢 KM SORTIE',
-                             'KM_Fin': '🔢 KM RETOUR', 'KM Roulé': '🔥 KM ROULÉ'})
+                entrees['KM Roulé'] = entrees.apply(lambda r: (r['km_fin'] - r['km_debut']) if r['km_fin'] > r['km_debut'] else 0, axis=1)
+                entrees['Heure_Retour_Propre'] = entrees['heure_fin'].apply(formater_heure_propre)
+                entrees_final = entrees[['matricule', 'client', 'date_debut', 'date_fin', 'Heure_Retour_Propre', 'lieu_reception', 'prix', 'km_debut', 'km_fin', 'KM Roulé']].rename(
+                    columns={'matricule': '🚘 Matricule', 'client': '👤 Client / Conducteur',
+                             'date_debut': '📅 DATE SORTIE', 'date_fin': '📅 DATE RETOUR',
+                             'Heure_Retour_Propre': '🕒 HEURE RETOUR', 'lieu_reception': '📍 LIEU DE RETOUR',
+                             'prix': '💰 PRIX TOTAL (DT)', 'km_debut': '🔢 KM SORTIE',
+                             'km_fin': '🔢 KM RETOUR', 'KM Roulé': '🔥 KM ROULÉ'})
                 st.dataframe(entrees_final, use_container_width=True, hide_index=True)
             else:
                 st.info("Aucun retour physique enregistré à cette date.")
@@ -1063,9 +1096,9 @@ with tab_vidange:
     st.markdown("### 🔧 Tableau de bord de Maintenance & Vidanges Automatisé")
     df_v_base = sb_select("vidanges")
     if df_v_base is not None and not df_v_base.empty:
-        df_v_base['KM_Dernier_Vidange'] = pd.to_numeric(df_v_base['KM_Dernier_Vidange'], errors='coerce').fillna(0).astype(int)
-        df_v_base['KM_Recent'] = pd.to_numeric(df_v_base['KM_Recent'], errors='coerce').fillna(0).astype(int)
-        df_v_base['KM cerculer'] = df_v_base['KM_Recent'] - df_v_base['KM_Dernier_Vidange']
+        df_v_base['km_dernier_vidange'] = pd.to_numeric(df_v_base['km_dernier_vidange'], errors='coerce').fillna(0).astype(int)
+        df_v_base['km_recent'] = pd.to_numeric(df_v_base['km_recent'], errors='coerce').fillna(0).astype(int)
+        df_v_base['KM cerculer'] = df_v_base['km_recent'] - df_v_base['km_dernier_vidange']
         df_v_base['km restant'] = 9000 - df_v_base['KM cerculer']
 
         alertes_critiques = df_v_base[df_v_base['km restant'] <= 1500]
@@ -1074,10 +1107,10 @@ with tab_vidange:
         else:
             st.success("✅ État de la flotte parfait : aucune vidange urgente.")
 
-        df_tableau_affichage = df_v_base[['Date_Mise_A_Jour', 'Marque', 'Matricule', 'Date_Dernier_Vidange', 'KM_Dernier_Vidange', 'KM_Recent', 'KM cerculer', 'km restant']].rename(
-            columns={'Date_Mise_A_Jour': 'DATE MIS AJOURS', 'Marque': 'MARQUE', 'Matricule': 'MATRICULE',
-                     'Date_Dernier_Vidange': 'TE DERNIER VIDAN', 'KM_Dernier_Vidange': 'DERNIER VIDA',
-                     'KM_Recent': 'KM RECENT', 'KM cerculer': 'KM cerculer', 'km restant': 'km restant'})
+        df_tableau_affichage = df_v_base[['date_mise_a_jour', 'marque', 'matricule', 'date_dernier_vidange', 'km_dernier_vidange', 'km_recent', 'KM cerculer', 'km restant']].rename(
+            columns={'date_mise_a_jour': 'DATE MIS AJOURS', 'marque': 'MARQUE', 'matricule': 'MATRICULE',
+                     'date_dernier_vidange': 'TE DERNIER VIDAN', 'km_dernier_vidange': 'DERNIER VIDA',
+                     'km_recent': 'KM RECENT', 'KM cerculer': 'KM cerculer', 'km restant': 'km restant'})
 
         def colorer_vidanges(row):
             val_restant = row['km restant']
@@ -1093,16 +1126,16 @@ with tab_vidange:
         with st.container(border=True):
             c_v1, c_v2, c_v3 = st.columns([1.5, 1.5, 2])
             with c_v1:
-                v_select = st.selectbox("Sélectionner le véhicule à mettre à jour : ", df_v_base['Matricule'].tolist())
-                v_info = df_v_base[df_v_base['Matricule'] == v_select].iloc[0]
+                v_select = st.selectbox("Sélectionner le véhicule à mettre à jour : ", df_v_base['matricule'].tolist())
+                v_info = df_v_base[df_v_base['matricule'] == v_select].iloc[0]
                 try:
-                    init_date_dernier = datetime.strptime(str(v_info['Date_Dernier_Vidange']), "%Y-%m-%d").date()
+                    init_date_dernier = datetime.strptime(str(v_info['date_dernier_vidange']), "%Y-%m-%d").date()
                 except Exception:
                     init_date_dernier = datetime.now().date()
                 date_dernier_manuel = st.date_input("Date du Dernier Vidange (Manuel) : ", value=init_date_dernier)
             with c_v2:
-                dernier_km_vidange_input = st.number_input("Dernier KM Vidange (Manuel) : ", min_value=0, value=int(v_info['KM_Dernier_Vidange']), step=1)
-                nouveau_km_actuel = st.number_input("Kilométrage Actuel / Récent (Manuel) : ", min_value=0, value=int(v_info['KM_Recent']), step=1)
+                dernier_km_vidange_input = st.number_input("Dernier KM Vidange (Manuel) : ", min_value=0, value=int(v_info['km_dernier_vidange']), step=1)
+                nouveau_km_actuel = st.number_input("Kilométrage Actuel / Récent (Manuel) : ", min_value=0, value=int(v_info['km_recent']), step=1)
             with c_v3:
                 date_effective = st.date_input("Date effective de l'opération : ", datetime.now())
                 action_sync = st.checkbox("Vidange effectuée aujourd'hui (Synchronise le dernier KM et remet à zéro)", value=False)
@@ -1112,19 +1145,20 @@ with tab_vidange:
                 date_historique_str = date_dernier_manuel.strftime("%Y-%m-%d")
                 if action_sync:
                     sb_update("vidanges", {
-                        "KM_Recent": int(nouveau_km_actuel),
-                        "KM_Dernier_Vidange": int(nouveau_km_actuel),
-                        "Date_Dernier_Vidange": date_operation_str,
-                        "Date_Mise_A_Jour": date_operation_str
-                    }, {"Matricule": v_select})
+                        "km_recent": int(nouveau_km_actuel),
+                        "km_dernier_vidange": int(nouveau_km_actuel),
+                        "date_dernier_vidange": date_operation_str,
+                        "date_mise_a_jour": date_operation_str
+                    }, {"matricule": v_select})
                 else:
                     sb_update("vidanges", {
-                        "KM_Recent": int(nouveau_km_actuel),
-                        "KM_Dernier_Vidange": int(dernier_km_vidange_input),
-                        "Date_Dernier_Vidange": date_historique_str,
-                        "Date_Mise_A_Jour": date_operation_str
-                    }, {"Matricule": v_select})
+                        "km_recent": int(nouveau_km_actuel),
+                        "km_dernier_vidange": int(dernier_km_vidange_input),
+                        "date_dernier_vidange": date_historique_str,
+                        "date_mise_a_jour": date_operation_str
+                    }, {"matricule": v_select})
                 st.success("Calculs mis à jour instantanément !")
+                st.cache_data.clear()
                 st.rerun()
 
 # --- TAB 6 : CRM ---
@@ -1136,32 +1170,31 @@ with tab_crm:
         search_query = st.text_input("Rechercher un profil (Nom, Prénom, CIN) : ", key="crm_search_field")
 
         if search_query:
-            # Recherche multi-champs
-            clients_nom = sb_select_like("clients", "*", "Nom", f"%{search_query}%")
-            clients_prenom = sb_select_like("clients", "*", "Prénom", f"%{search_query}%")
-            clients_cin = sb_select_like("clients", "*", "CIN", f"%{search_query}%")
-            clients_trouves = pd.concat([clients_nom, clients_prenom, clients_cin]).drop_duplicates(subset=["CIN"]).reset_index(drop=True)
+            clients_nom = sb_select_like("clients", "nom", f"%{search_query}%")
+            clients_prenom = sb_select_like("clients", "prenom", f"%{search_query}%")
+            clients_cin = sb_select_like("clients", "cin", f"%{search_query}%")
+            clients_trouves = pd.concat([clients_nom, clients_prenom, clients_cin]).drop_duplicates(subset=["cin"]).reset_index(drop=True)
 
             if clients_trouves is not None and not clients_trouves.empty:
                 for idx, cli in clients_trouves.iterrows():
-                    cin_client_actuel = str(cli['CIN']).strip()
+                    cin_client_actuel = str(cli['cin']).strip()
                     unique_suffix = f"{idx}_{cin_client_actuel}"
 
-                    with st.expander(f"👤 {str(cli['Nom']).upper()} {cli['Prénom']} (CIN: {cin_client_actuel})", expanded=True):
-                        st.write(f"**📞 Téléphone :** `{cli.get('Numéro de téléphone', 'N/A')}` | **🚗 N° Permis :** `{cli.get('N° Permis', 'N/A')}`")
-                        st.write(f"📅 **Délivrance CIN :** `{cli.get('Date Délivrance CIN', 'N/A')}` | 📅 **Délivrance Permis :** `{cli.get('Date Délivrance Permis', 'N/A')}`")
+                    with st.expander(f"👤 {str(cli['nom']).upper()} {cli['prenom']} (CIN: {cin_client_actuel})", expanded=True):
+                        st.write(f"**📞 Téléphone :** `{cli.get('numero_telephone', 'N/A')}` | **🚗 N° Permis :** `{cli.get('num_permis', 'N/A')}`")
+                        st.write(f"📅 **Délivrance CIN :** `{cli.get('date_delivrance_cin', 'N/A')}` | 📅 **Délivrance Permis :** `{cli.get('date_delivrance_permis', 'N/A')}`")
 
                         col_img1, col_img2 = st.columns(2)
                         with col_img1:
-                            if cli.get('Image CIN'):
+                            if cli.get('image_cin'):
                                 try:
-                                    st.image(base64.b64decode(cli['Image CIN']), caption="Pièce d'identité (CIN)", use_container_width=True)
+                                    st.image(base64.b64decode(cli['image_cin']), caption="Pièce d'identité (CIN)", use_container_width=True)
                                 except Exception:
                                     pass
                         with col_img2:
-                            if cli.get('Image Permis'):
+                            if cli.get('image_permis'):
                                 try:
-                                    st.image(base64.b64decode(cli['Image Permis']), caption="Permis de conduire", use_container_width=True)
+                                    st.image(base64.b64decode(cli['image_permis']), caption="Permis de conduire", use_container_width=True)
                                 except Exception:
                                     pass
 
@@ -1176,8 +1209,9 @@ with tab_crm:
                             check_sup = st.checkbox("Confirmer la suppression", key=f"chk_del_{unique_suffix}")
                             if st.button(f"🗑️ SUPPRIMER CE CLIENT", key=f"btn_del_{unique_suffix}"):
                                 if check_sup:
-                                    sb_delete("clients", {"CIN": cin_client_actuel})
+                                    sb_delete("clients", {"cin": cin_client_actuel})
                                     st.success(f"Client [CIN: {cin_client_actuel}] supprimé définitivement.")
+                                    st.cache_data.clear()
                                     st.rerun()
                                 else:
                                     st.warning("Veuillez cocher la case de confirmation avant de supprimer.")
@@ -1186,17 +1220,17 @@ with tab_crm:
                             st.markdown("<br>", unsafe_allow_html=True)
                             with st.form(key=f"form_reel_edit_{unique_suffix}"):
                                 st.markdown("##### 📝 Édition des informations")
-                                e_prenom = st.text_input("Prénom", value=str(cli['Prénom']))
-                                e_nom = st.text_input("Nom", value=str(cli['Nom']))
-                                e_tel = st.text_input("Téléphone", value=str(cli.get('Numéro de téléphone', '')))
-                                e_permis = st.text_input("N° Permis", value=str(cli.get('N° Permis', '')))
+                                e_prenom = st.text_input("Prénom", value=str(cli['prenom']))
+                                e_nom = st.text_input("Nom", value=str(cli['nom']))
+                                e_tel = st.text_input("Téléphone", value=str(cli.get('numero_telephone', '')))
+                                e_permis = st.text_input("N° Permis", value=str(cli.get('num_permis', '')))
 
                                 try:
-                                    e_init_d_cin = datetime.strptime(str(cli.get('Date Délivrance CIN')), "%Y-%m-%d").date()
+                                    e_init_d_cin = datetime.strptime(str(cli.get('date_delivrance_cin')), "%Y-%m-%d").date()
                                 except Exception:
                                     e_init_d_cin = datetime.now().date()
                                 try:
-                                    e_init_d_per = datetime.strptime(str(cli.get('Date Délivrance Permis')), "%Y-%m-%d").date()
+                                    e_init_d_per = datetime.strptime(str(cli.get('date_delivrance_permis')), "%Y-%m-%d").date()
                                 except Exception:
                                     e_init_d_per = datetime.now().date()
 
@@ -1208,19 +1242,20 @@ with tab_crm:
 
                                 if st.form_submit_button("✅ METTRE À JOUR"):
                                     update_data = {
-                                        "Prénom": e_prenom, "Nom": e_nom,
-                                        "Numéro de téléphone": e_tel, "N° Permis": e_permis,
-                                        "Date Délivrance CIN": e_d_cin.strftime("%Y-%m-%d"),
-                                        "Date Délivrance Permis": e_d_per.strftime("%Y-%m-%d")
+                                        "prenom": e_prenom, "nom": e_nom,
+                                        "numero_telephone": e_tel, "num_permis": e_permis,
+                                        "date_delivrance_cin": e_d_cin.strftime("%Y-%m-%d"),
+                                        "date_delivrance_permis": e_d_per.strftime("%Y-%m-%d")
                                     }
                                     if f_cin_remplace:
-                                        update_data["Image CIN"] = encoder_image_base64(f_cin_remplace)
+                                        update_data["image_cin"] = encoder_image_base64(f_cin_remplace)
                                     if f_per_remplace:
-                                        update_data["Image Permis"] = encoder_image_base64(f_per_remplace)
+                                        update_data["image_permis"] = encoder_image_base64(f_per_remplace)
 
-                                    sb_update("clients", update_data, {"CIN": cin_client_actuel})
+                                    sb_update("clients", update_data, {"cin": cin_client_actuel})
                                     st.success("Profil mis à jour !")
                                     st.session_state[f"mode_edition_{unique_suffix}"] = False
+                                    st.cache_data.clear()
                                     st.rerun()
 
     with c2:
@@ -1240,14 +1275,15 @@ with tab_crm:
             if st.form_submit_button("⚡ CRÉER LE PROFIL CLIENT"):
                 if n_prenom and n_nom and n_cin:
                     sb_upsert("clients", {
-                        "Prénom": n_prenom, "Nom": n_nom, "CIN": n_cin,
-                        "Numéro de téléphone": n_tel, "N° Permis": n_permis,
-                        "Date Délivrance CIN": n_d_cin.strftime("%Y-%m-%d"),
-                        "Date Délivrance Permis": n_d_per.strftime("%Y-%m-%d"),
-                        "Image CIN": encoder_image_base64(f_cin_new),
-                        "Image Permis": encoder_image_base64(f_per_new)
-                    }, on_conflict="CIN")
+                        "prenom": n_prenom, "nom": n_nom, "cin": n_cin,
+                        "numero_telephone": n_tel, "num_permis": n_permis,
+                        "date_delivrance_cin": n_d_cin.strftime("%Y-%m-%d"),
+                        "date_delivrance_permis": n_d_per.strftime("%Y-%m-%d"),
+                        "image_cin": encoder_image_base64(f_cin_new),
+                        "image_permis": encoder_image_base64(f_per_new)
+                    }, on_conflict="cin")
                     st.success("Nouveau client enregistré !")
+                    st.cache_data.clear()
                     st.rerun()
                 else:
                     st.error("Veuillez remplir les champs obligatoires (*)")
@@ -1262,10 +1298,12 @@ with tab_admin:
             if st.checkbox("Confirmer la purge des mouvements"):
                 sb_delete_all("mouvements")
                 st.success("Tous les mouvements ont été effacés.")
+                st.cache_data.clear()
                 st.rerun()
     with col_a2:
         if st.button("🗑️ RÉINITIALISER LA BASE CLIENTS"):
             if st.checkbox("Confirmer la purge des clients"):
                 sb_delete_all("clients")
                 st.success("La base clients a été réinitialisée.")
+                st.cache_data.clear()
                 st.rerun()
