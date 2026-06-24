@@ -679,69 +679,97 @@ tab_planning, tab_contrats, tab_logistique, tab_analytics, tab_vidange, tab_crm,
     "📊 PERFORMANCES", "🔧 VIDANGES", "👥 CRM", "⚙️ ADMIN"
 ])
 
-# --- TAB 1 : PLANNING ---
+# --- TAB 1 : PLANNING (VERSION CORRIGÉE) ---
 with tab_planning:
-    st.markdown("### 🗓️ Vue Globale & Filtres")
+    st.markdown("### 🗓️ Vue Globale & Filtres Intelligents")
     f_col_car, f_col_date_start, f_col_date_target = st.columns([2, 1.5, 1.5])
     with f_col_car:
         options_recherche_voiture = ["-- Toutes les voitures --"] + liste_vehicules_opt
         vehicule_recherche = st.selectbox("🚘 Filtrer par véhicule :", options_recherche_voiture)
-    with f_col_date_start:
-        date_base = st.date_input("Date de début de la grille :", datetime(2026, 1, 1), key="grid_bbnh_date")
-    with f_col_date_target:
-        recherche_date = st.date_input("📅 Focus date :", datetime(2026, 6, 12))
+    with f_col_date_start: date_base = st.date_input("Date de début de la grille :", datetime(2026, 1, 1), key="grid_bbnh_date")
+    with f_col_date_target: recherche_date = st.date_input("📅 Aller à la date spécifique (Focus) :", datetime(2026, 6, 12))
 
     array_jours = [date_base + timedelta(days=i) for i in range(365)]
     nom_colonnes = [j.strftime("%d/%m") for j in array_jours]
-    df_voitures_valides = df_voitures[df_voitures['Matricule'].notna() & (df_voitures['Matricule'].astype(str).str.strip() != '')] if not df_voitures.empty else pd.DataFrame()
+    df_voitures_valides = df_voitures[df_voitures['Matricule'].notna() & (df_voitures['Matricule'].str.strip().str.lower() != 'nan')] if not df_voitures.empty else pd.DataFrame()
 
     if not df_voitures_valides.empty:
         build_matrix = []
         for _, car in df_voitures_valides.iterrows():
-            immat = safe_str(car.get('Matricule'))
+            immat = str(car.get('Matricule', '')).strip()
             if vehicule_recherche != "-- Toutes les voitures --" and immat != vehicule_recherche: continue
-            modele = safe_str(car.get('Modèle', car.get('Marque', 'Véhicule')))
+            modele = str(car.get('Modèle', car.get('Marque', 'Véhicule')))
             ligne = {"Flotte BBNH": f"🚘 {modele} — [{immat}]"}
             for col_j in nom_colonnes: ligne[col_j] = "● Disponible"
             build_matrix.append(ligne)
 
-        if build_matrix:
+        if len(build_matrix) > 0:
             df_final_grid = pd.DataFrame(build_matrix)
-            suivi_jours = {}
-            if not df_mouvs.empty:
+            
+            # 🔧 CORRECTION : Détecter les mouvements correctement
+            if not df_mouvs.empty and not df_final_grid.empty:
+                suivi_jours = {}
+                
                 for _, mv in df_mouvs.iterrows():
-                    m_v = safe_str(mv.get('Matricule'))
-                    if not m_v: continue
-                    s_v = safe_str(mv.get('Type_Statut')).lower()
-                    client_v = safe_str(mv.get('Client'))
-                    h_deb_label = formater_heure_propre(mv.get('Heure_Debut'))
-                    h_fin_label = formater_heure_propre(mv.get('Heure_Fin'))
-                    d_debut_mv = parse_date(mv.get('Date_Debut'))
-                    d_fin_mv = parse_date(mv.get('Date_Fin'))
-                    if not (d_debut_mv and d_fin_mv): continue
+                    # Vérifier que les colonnes existent
+                    if 'Matricule' not in mv.index or 'Date_Debut' not in mv.index or 'Date_Fin' not in mv.index:
+                        continue
+                    
+                    matricule_mv = str(mv.get('Matricule', '')).strip()
+                    if not matricule_mv or matricule_mv.lower() == 'nan':
+                        continue
+                    
+                    type_statut = str(mv.get('Type_Statut', 'Location')).strip().lower()
+                    client_v = str(mv.get('Client', '')).strip()
+                    h_deb_label = formater_heure_propre(mv.get('Heure_Debut', ''))
+                    h_fin_label = formater_heure_propre(mv.get('Heure_Fin', ''))
 
-                    if m_v not in suivi_jours: suivi_jours[m_v] = {}
-                    for j in array_jours:
-                        if d_debut_mv <= j <= d_fin_mv:
-                            key_day = j.strftime("%d/%m")
-                            if key_day not in suivi_jours[m_v]:
-                                suivi_jours[m_v][key_day] = {"depart": False, "fin": False, "client_sortant": "", "client_entrant": "", "heure_sortie": "00:00", "heure_retour": "00:00", "desc": ""}
-                            if j == d_debut_mv:
-                                suivi_jours[m_v][key_day]["depart"] = True
-                                suivi_jours[m_v][key_day]["client_sortant"] = client_v
-                                suivi_jours[m_v][key_day]["heure_sortie"] = h_deb_label
-                            if j == d_fin_mv:
-                                suivi_jours[m_v][key_day]["fin"] = True
-                                suivi_jours[m_v][key_day]["client_entrant"] = client_v
-                                suivi_jours[m_v][key_day]["heure_retour"] = h_fin_label
-                            if not (suivi_jours[m_v][key_day]["depart"] and suivi_jours[m_v][key_day]["fin"]):
-                                if "garage" in s_v or "maintenance" in s_v:
-                                    suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
-                                elif "réservation" in s_v:
-                                    suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
-                                else:
-                                    suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                    try:
+                        d_debut_mv = pd.to_datetime(str(mv.get('Date_Debut', '')), errors='coerce').date()
+                        d_fin_mv = pd.to_datetime(str(mv.get('Date_Fin', '')), errors='coerce').date()
+                        
+                        if pd.isna(d_debut_mv) or pd.isna(d_fin_mv):
+                            continue
+                        
+                        if matricule_mv not in suivi_jours:
+                            suivi_jours[matricule_mv] = {}
+                        
+                        for j in array_jours:
+                            if d_debut_mv <= j <= d_fin_mv:
+                                key_day = j.strftime("%d/%m")
+                                if key_day not in suivi_jours[matricule_mv]:
+                                    suivi_jours[matricule_mv][key_day] = {
+                                        "depart": False, "fin": False,
+                                        "client_sortant": "", "client_entrant": "",
+                                        "heure_sortie": "00:00", "heure_retour": "00:00",
+                                        "desc": "", "type": type_statut
+                                    }
+                                
+                                if j == d_debut_mv:
+                                    suivi_jours[matricule_mv][key_day]["depart"] = True
+                                    suivi_jours[matricule_mv][key_day]["client_sortant"] = client_v
+                                    suivi_jours[matricule_mv][key_day]["heure_sortie"] = h_deb_label
+                                
+                                if j == d_fin_mv:
+                                    suivi_jours[matricule_mv][key_day]["fin"] = True
+                                    suivi_jours[matricule_mv][key_day]["client_entrant"] = client_v
+                                    suivi_jours[matricule_mv][key_day]["heure_retour"] = h_fin_label
+                                
+                                # 🔧 Déterminer le type et la couleur
+                                if not (suivi_jours[matricule_mv][key_day]["depart"] and suivi_jours[matricule_mv][key_day]["fin"]):
+                                    # Normaliser pour gérer les accents
+                                    type_normalise = unicodedata.normalize('NFKD', type_statut).encode('ASCII', 'ignore').decode('ascii').lower()
+                                    
+                                    if "garage" in type_normalise or "maintenance" in type_normalise:
+                                        suivi_jours[matricule_mv][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
+                                    elif "reservation" in type_normalise:
+                                        suivi_jours[matricule_mv][key_day]["desc"] = f"🔴 RESERVATION : [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                    else:
+                                        suivi_jours[matricule_mv][key_day]["desc"] = f"🟢 LOCATION : [{h_deb_label}➔{h_fin_label}] {client_v}"
+                    except Exception as e:
+                        continue
 
+            # 🔧 Appliquer les mouvements au planning
             for idx, row in df_final_grid.iterrows():
                 mat_extracted = row["Flotte BBNH"].split("[")[-1].replace("]", "").strip()
                 if mat_extracted in suivi_jours:
@@ -749,28 +777,44 @@ with tab_planning:
                         if key_day in df_final_grid.columns:
                             if data["depart"] and data["fin"]:
                                 df_final_grid.at[idx, key_day] = f"🔵 🛬{data['heure_retour']} {data['client_entrant']} / 🛫{data['heure_sortie']} {data['client_sortant']}"
-                            elif data["desc"]:
+                            elif data["desc"] != "":
                                 df_final_grid.at[idx, key_day] = data["desc"]
 
+            # 🔧 FONCTION STYLE CORRIGÉE
             def style_bbnh_theme(val):
-                val_str = str(val)
-                if "● Disponible" in val_str: return "background-color: #ffffff; color: #111827; font-size: 11px; font-weight: 600; text-align: center;"
-                elif "🔵" in val_str: return "background-color: #1d4ed8; color: #ffffff; font-weight: 700; font-size: 10px;"
-                elif "🛠️" in val_str: return "background-color: #eab308; color: #1e1b4b; font-weight: 700; font-size: 11px;"
-                elif "🔴" in val_str: return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
-                elif "🟢" in val_str: return "background-color: #16a34a; color: #ffffff; font-weight: 600; font-size: 11px;"
-                return "background-color: #090b0e; color: #ffffff;"
+                val_str = str(val).lower()
+                
+                # Disponible (blanc)
+                if "disponible" in val_str or val_str.strip() == "●":
+                    return "background-color: #ffffff !important; color: #111827 !important; font-size: 11px !important; font-weight: 600 !important; text-align: center !important;"
+                
+                # Retour + Départ même jour (bleu)
+                elif "🛬" in val_str and "🛫" in val_str:
+                    return "background-color: #1d4ed8 !important; color: #ffffff !important; font-weight: 700 !important; font-size: 10px !important;"
+                
+                # Garage / Maintenance (jaune)
+                elif "garage" in val_str or "maintenance" in val_str or "🛠️" in val_str:
+                    return "background-color: #eab308 !important; color: #1e1b4b !important; font-weight: 700 !important; font-size: 11px !important;"
+                
+                # Réservation (rouge)
+                elif "réservation" in val_str or "reservation" in val_str or "🔴" in val_str:
+                    return "background-color: #dc2626 !important; color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;"
+                
+                # Location (vert)
+                elif "location" in val_str or "🟢" in val_str:
+                    return "background-color: #16a34a !important; color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;"
+                
+                # Par défaut
+                else:
+                    return "background-color: #090b0e !important; color: #ffffff !important; font-weight: 700 !important; font-size: 12px !important;"
 
             target_col_str = recherche_date.strftime("%d/%m")
             cols_ordonnees = ['Flotte BBNH']
             if target_col_str in nom_colonnes:
                 idx_target = nom_colonnes.index(target_col_str)
                 cols_ordonnees += nom_colonnes[max(0, idx_target - 2):min(365, idx_target + 12)]
-
-            styled_df = df_final_grid[cols_ordonnees].style
-            styled_df = style_apply(styled_df, style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH'])
-            st.dataframe(styled_df, use_container_width=True, height=800)
-
+            
+            st.dataframe(df_final_grid[cols_ordonnees].style.map(style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH']), use_container_width=True, height=800)
 # --- TAB 2 : CONTRATS ---
 with tab_contrats:
     st.markdown("### 📄 Liste des Contrats & Mouvements")
