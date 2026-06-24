@@ -684,14 +684,18 @@ with tab_planning:
             st.dataframe(df_final_grid[cols_ordonnees].style.map(style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH']), use_container_width=True, height=800)
 
 # ============================================================
-# --- TAB 2 : LISTE DE CONTRAT (VERSION CORRIGÉE) ---
+# TAB 2 : LISTE DE CONTRAT (VERSION CORRIGÉE)
+# ============================================================
 with tab_contrats:
     st.markdown("### 📄 Liste Détaillée des Contrats & Mouvements")
     
-    # Récupérer tous les mouvements triés par ID décroissant
-    df_contrats_list = executer("SELECT * FROM mouvements ORDER BY ID DESC")
+    # Trier par ID décroissant
+    if 'id' in df_mouvs.columns:
+        df_contrats_list = df_mouvs.sort_values(by='id', ascending=False)
+    else:
+        df_contrats_list = df_mouvs
     
-    if df_contrats_list is not None and not df_contrats_list.empty:
+    if not df_contrats_list.empty:
         # Construction du tableau HTML
         html_table = """
         <table class="contract-table">
@@ -721,25 +725,25 @@ with tab_contrats:
                 # 2. NUMÉRO DE TÉLÉPHONE (recherche avec tolérance)
                 tel = "N/A"
                 client = str(row.get('Client', '')).strip()
-                if client and client != 'nan' and client != '':
+                if client and client != 'nan' and client != '' and not df_clients.empty:
                     # Recherche exacte d'abord
-                    df_tel = executer("SELECT [Numéro de téléphone] FROM clients WHERE [Nom] = ?", (client,))
-                    if df_tel is not None and not df_tel.empty:
+                    df_tel = df_clients[df_clients['Nom'] == client]
+                    if df_tel.empty:
+                        # Recherche partielle si échec
+                        df_tel = df_clients[df_clients['Nom'].str.contains(client, case=False, na=False)]
+                    
+                    if not df_tel.empty:
                         tel_val = df_tel.iloc[0].get('Numéro de téléphone', 'N/A')
                         if pd.notna(tel_val) and str(tel_val).strip() != '' and str(tel_val).lower() != 'nan':
                             tel = str(tel_val)
-                    else:
-                        # Recherche partielle si échec
-                        df_tel = executer("SELECT [Numéro de téléphone] FROM clients WHERE [Nom] LIKE ?", (f"%{client}%",))
-                        if df_tel is not None and not df_tel.empty:
-                            tel_val = df_tel.iloc[0].get('Numéro de téléphone', 'N/A')
-                            if pd.notna(tel_val) and str(tel_val).strip() != '' and str(tel_val).lower() != 'nan':
-                                tel = str(tel_val)
                 
                 # 3. N° CONTRAT (formaté #0001)
-                try:
-                    num_contrat = f"#{int(row.get('ID', 0)):04d}"
-                except:
+                if 'id' in row.index and pd.notna(row.get('id')):
+                    try:
+                        num_contrat = f"#{int(row.get('id', 0)):04d}"
+                    except:
+                        num_contrat = matricule
+                else:
                     num_contrat = matricule
                 
                 # 4. DATE DÉPART
@@ -852,6 +856,7 @@ with tab_contrats:
                     </tr>
                 """
             except Exception as e:
+                # Si une ligne cause une erreur, on la saute
                 continue
         
         html_table += "</tbody></table>"
