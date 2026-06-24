@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 # CONFIGURATION SUPABASE
 # ============================================
 load_dotenv()
-SUPABASE_URL = os.getenv("")
-SUPABASE_KEY = os.getenv("")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("⚠️ Variables SUPABASE_URL et SUPABASE_KEY manquantes dans .env")
