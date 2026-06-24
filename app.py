@@ -3,9 +3,12 @@ import pandas as pd
 from supabase import create_client, Client
 import os
 import base64
+import unicodedata
 from datetime import datetime, timedelta, time
 
-# --- CONFIGURATION DE LA PAGE ---
+# ============================================================
+# CONFIGURATION DE LA PAGE
+# ============================================================
 st.set_page_config(
     page_title="BBNH OS — Gestion Premium",
     layout="wide",
@@ -13,7 +16,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- STYLE CSS AVANCÉ : CHARTE GRAPHIQUE BBNH ---
+# ============================================================
+# STYLE CSS AVANCÉ : CHARTE GRAPHIQUE BBNH
+# ============================================================
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700;800&display=swap');
@@ -29,21 +34,15 @@ section[data-testid="stSidebar"] {
     min-width: 450px !important;
     max-width: 450px !important;
 }
-div[data-testid="stSidebarUserContent"] { padding: 2rem 1.5rem !important; }
 .logo-container {
     background: #ffffff;
     padding: 16px;
     border-radius: 16px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
     margin-bottom: 25px;
     display: flex;
     justify-content: center;
     align-items: center;
-}
-div[data-testid="stRadio"] label {
-    font-size: 15px !important;
-    font-weight: 500 !important;
-    padding: 8px 4px !important;
 }
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px; 
@@ -58,31 +57,14 @@ div[data-testid="stRadio"] label {
     border-radius: 10px;
     font-weight: 600;
     color: #9ca3af;
-    transition: all 0.2s ease;
     border: none !important;
 }
-.stTabs [data-baseweb="tab"]:hover { background-color: #222733; color: #ffffff; }
 .stTabs [aria-selected="true"] { 
     background-color: #e60000 !important;
     color: #ffffff !important;
-    box-shadow: 0 4px 15px rgba(230, 0, 0, 0.4);
 }
-h1 { font-weight: 800 !important; letter-spacing: -1px !important; color: #ffffff !important; }
-h3 { color: #f3f4f6; font-weight: 700 !important; letter-spacing: -0.5px; }
-div[data-testid="stForm"] {
-    background: rgba(22, 25, 32, 0.8) !important;
-    border: 1px solid #2a3142 !important;
-    padding: 25px !important;
-    border-radius: 16px !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
-}
-input, select, textarea, div[data-baseweb="select"] {
-    background-color: #1a1e26 !important;
-    color: #ffffff !important;
-    border: 1px solid #2a3142 !important;
-    border-radius: 10px !important;
-    font-size: 14px !important;
-}
+h1 { font-weight: 800 !important; color: #ffffff !important; }
+h3 { color: #f3f4f6; font-weight: 700 !important; }
 div.stButton > button {
     background: linear-gradient(135deg, #e60000 0%, #b30000 100%) !important;
     color: white !important;
@@ -90,17 +72,6 @@ div.stButton > button {
     border-radius: 10px !important;
     padding: 14px 28px !important;
     font-weight: 700 !important;
-    letter-spacing: 0.5px;
-    font-size: 14px !important;
-    transition: all 0.2s ease;
-}
-div.stButton > button:hover { 
-    transform: translateY(-1px); 
-    box-shadow: 0 5px 15px rgba(230, 0, 0, 0.5); 
-}
-div[data-testid="stDataFrame"] {
-    border: 1px solid #222733 !important;
-    border-radius: 14px !important;
 }
 .contract-table {
     width: 100%;
@@ -138,12 +109,7 @@ div[data-testid="stDataFrame"] {
 }
 .status-paid { background-color: #e6f7ed; color: #28a745; border: 1px solid #28a745; }
 .status-pending { background-color: #fff4e6; color: #fd7e14; border: 1px solid #fd7e14; }
-.km-box {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    align-items: center;
-}
+.km-box { display: flex; flex-direction: column; gap: 2px; align-items: center; }
 .km-value { font-weight: bold; margin-bottom: 2px; }
 .km-indicator {
     width: 80px;
@@ -205,6 +171,12 @@ def formater_heure_propre(valeur_excel):
     if len(parts) >= 2:
         return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
     return '00:00'
+
+def normaliser_texte(texte):
+    """Normalise le texte en enlevant les accents pour la comparaison"""
+    if not texte:
+        return ""
+    return unicodedata.normalize('NFKD', str(texte)).encode('ASCII', 'ignore').decode('ascii').lower()
 
 # ============================================================
 # FONCTIONS DATABASE SUPABASE
@@ -470,7 +442,16 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
         except: init_date_permis = datetime.now().date()
         
         st.sidebar.markdown(f"### ⚙️ Édition Totale du Dossier #{selected_id}")
-        mod_nature = st.sidebar.selectbox("Changer de Nature : ", ["Location", "Réservation", "Maintenance / Garage"], index=0)
+        
+        # Déterminer l'index de la nature actuelle
+        type_actuel = normaliser_texte(row_init.get('Type_Statut', 'Location'))
+        index_nature = 0
+        if "reservation" in type_actuel or "réservation" in type_actuel:
+            index_nature = 1
+        elif "garage" in type_actuel or "maintenance" in type_actuel:
+            index_nature = 2
+        
+        mod_nature = st.sidebar.selectbox("Changer de Nature : ", ["Location", "Réservation", "Maintenance / Garage"], index=index_nature)
         idx_v_init = liste_vehicules_opt.index(str(row_init.get('Matricule', '')).strip()) if str(row_init.get('Matricule', '')).strip() in liste_vehicules_opt else 0
         mod_vehicule = st.sidebar.selectbox("Changer de véhicule : ", liste_vehicules_opt, index=idx_v_init)
         
@@ -524,7 +505,7 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
             
             update_row(T_VIDANGE, {"KM_Recent": int(mod_km_deb), "Date_Mise_A_Jour": str_mod_d1}, "Matricule", mod_vehicule)
             
-            st.success("Toutes les données ont été mises à jour avec succès !")
+            st.success("✅ Toutes les données ont été mises à jour avec succès !")
             st.cache_data.clear()
             st.rerun()
 
@@ -598,7 +579,9 @@ tab_planning, tab_contrats, tab_logistique, tab_analytics, tab_vidange, tab_crm,
     "📊 SUIVI DES PERFORMANCES", "🔧 SUIVI DES VIDANGES", "👥 COMPTE CONDUCTEURS (CRM)", "⚙️ PANNEAU DE CONFIGURATION"
 ])
 
-# --- TAB 1 : PLANNING ---
+# ============================================================
+# TAB 1 : PLANNING (AVEC COULEURS CORRIGÉES)
+# ============================================================
 with tab_planning:
     st.markdown("### 🗓️ Vue Globale & Filtres Intelligents")
     f_col_car, f_col_date_start, f_col_date_target = st.columns([2, 1.5, 1.5])
@@ -653,9 +636,15 @@ with tab_planning:
                                     suivi_jours[m_v][key_day]["heure_retour"] = h_fin_label
                                 
                                 if not (suivi_jours[m_v][key_day]["depart"] and suivi_jours[m_v][key_day]["fin"]):
-                                    if "garage" in s_v or "maintenance" in s_v: suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
-                                    elif "réservation" in s_v: suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
-                                    else: suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                    # 🔧 Normalisation avec unicodedata pour gérer les accents
+                                    s_v_normalise = unicodedata.normalize('NFKD', s_v).encode('ASCII', 'ignore').decode('ascii').lower()
+                                    
+                                    if "garage" in s_v_normalise or "maintenance" in s_v_normalise:
+                                        suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
+                                    elif "reservation" in s_v_normalise or "réservation" in s_v:
+                                        suivi_jours[m_v][key_day]["desc"] = f"🔴 RESERVATION : [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                    else:
+                                        suivi_jours[m_v][key_day]["desc"] = f"🟢 LOCATION : [{h_deb_label}➔{h_fin_label}] {client_v}"
                     except: pass
 
             for idx, row in df_final_grid.iterrows():
@@ -667,14 +656,33 @@ with tab_planning:
                                 df_final_grid.at[idx, key_day] = f"🔵 🛬{data['heure_retour']} {data['client_entrant']} / 🛫{data['heure_sortie']} {data['client_sortant']}"
                             elif data["desc"] != "": df_final_grid.at[idx, key_day] = data["desc"]
 
+            # 🔧 FONCTION STYLE CORRIGÉE AVEC !important
             def style_bbnh_theme(val):
-                val_str = str(val)
-                if "● Disponible" in val_str: return "background-color: #ffffff; color: #111827; font-size: 11px; font-weight: 600; text-align: center; border: 1px solid #e5e7eb;"
-                elif "🔵" in val_str: return "background-color: #1d4ed8; color: #ffffff; font-weight: 700; font-size: 10px; border: 2px solid #60a5fa;"
-                elif "🛠️" in val_str: return "background-color: #eab308; color: #1e1b4b; font-weight: 700; font-size: 11px;"
-                elif "🔴" in val_str: return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
-                elif "🟢" in val_str: return "background-color: #16a34a; color: #ffffff; font-weight: 600; font-size: 11px;"
-                return "background-color: #090b0e; color: #ffffff; font-weight: 700; font-size: 12px; border-right: 3px solid #e60000;"
+                val_str = str(val).lower()
+                
+                # Disponible (blanc)
+                if "disponible" in val_str or "●" in val_str:
+                    return "background-color: #ffffff !important; color: #111827 !important; font-size: 11px !important; font-weight: 600 !important; text-align: center !important; border: 1px solid #e5e7eb !important;"
+                
+                # Retour + Départ même jour (bleu)
+                elif "🛬" in val_str and "🛫" in val_str:
+                    return "background-color: #1d4ed8 !important; color: #ffffff !important; font-weight: 700 !important; font-size: 10px !important; border: 2px solid #60a5fa !important;"
+                
+                # Garage / Maintenance (jaune)
+                elif "garage" in val_str or "maintenance" in val_str or "🛠️" in val_str:
+                    return "background-color: #eab308 !important; color: #1e1b4b !important; font-weight: 700 !important; font-size: 11px !important;"
+                
+                # Réservation (rouge) - détecte avec et sans accent
+                elif "réservation" in val_str or "reservation" in val_str or "🔴" in val_str:
+                    return "background-color: #dc2626 !important; color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;"
+                
+                # Location (vert)
+                elif "location" in val_str or "🟢" in val_str:
+                    return "background-color: #16a34a !important; color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;"
+                
+                # Par défaut (noir avec bordure rouge)
+                else:
+                    return "background-color: #090b0e !important; color: #ffffff !important; font-weight: 700 !important; font-size: 12px !important; border-right: 3px solid #e60000 !important;"
 
             target_col_str = recherche_date.strftime("%d/%m")
             cols_ordonnees = ['Flotte BBNH']
@@ -689,14 +697,12 @@ with tab_planning:
 with tab_contrats:
     st.markdown("### 📄 Liste Détaillée des Contrats & Mouvements")
     
-    # Trier par ID décroissant
     if 'id' in df_mouvs.columns:
         df_contrats_list = df_mouvs.sort_values(by='id', ascending=False)
     else:
         df_contrats_list = df_mouvs
     
     if not df_contrats_list.empty:
-        # Construction du tableau HTML
         html_table = """
         <table class="contract-table">
             <thead>
@@ -719,17 +725,14 @@ with tab_contrats:
         
         for _, row in df_contrats_list.iterrows():
             try:
-                # 1. MATRICULE
                 matricule = str(row.get('Matricule', 'N/A')).strip()
                 
-                # 2. NUMÉRO DE TÉLÉPHONE (recherche avec tolérance)
+                # 🔧 TÉLÉPHONE avec tolérance
                 tel = "N/A"
                 client = str(row.get('Client', '')).strip()
                 if client and client != 'nan' and client != '' and not df_clients.empty:
-                    # Recherche exacte d'abord
                     df_tel = df_clients[df_clients['Nom'] == client]
                     if df_tel.empty:
-                        # Recherche partielle si échec
                         df_tel = df_clients[df_clients['Nom'].str.contains(client, case=False, na=False)]
                     
                     if not df_tel.empty:
@@ -737,7 +740,7 @@ with tab_contrats:
                         if pd.notna(tel_val) and str(tel_val).strip() != '' and str(tel_val).lower() != 'nan':
                             tel = str(tel_val)
                 
-                # 3. N° CONTRAT (formaté #0001)
+                # 🔧 N° CONTRAT formaté
                 if 'id' in row.index and pd.notna(row.get('id')):
                     try:
                         num_contrat = f"#{int(row.get('id', 0)):04d}"
@@ -746,28 +749,18 @@ with tab_contrats:
                 else:
                     num_contrat = matricule
                 
-                # 4. DATE DÉPART
+                # DATES
                 try:
                     d_dep = datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d").strftime("%d/%m/%Y")
-                except:
-                    d_dep = str(row.get('Date_Debut', 'N/A'))
-                
-                # 5. DATE RETOUR
-                try:
                     d_ret = datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d").strftime("%d/%m/%Y")
-                except:
-                    d_ret = str(row.get('Date_Fin', 'N/A'))
-                
-                # 6. NOMBRE DE JOURS
-                try:
-                    d_dep_dt = datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d")
-                    d_ret_dt = datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d")
-                    jours = (d_ret_dt - d_dep_dt).days
+                    jours = (datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d") - datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d")).days
                     if jours <= 0: jours = 1
                 except:
+                    d_dep = str(row.get('Date_Debut', 'N/A'))
+                    d_ret = str(row.get('Date_Fin', 'N/A'))
                     jours = "?"
                 
-                # 7. MONTANT TTC
+                # MONTANT
                 try:
                     prix_val = row.get('Prix', 0)
                     if pd.isna(prix_val) or str(prix_val).strip() == '' or str(prix_val).lower() == 'nan':
@@ -776,7 +769,7 @@ with tab_contrats:
                 except:
                     montant = "0.000"
                 
-                # 8. RESTE
+                # RESTE
                 try:
                     reste_val = row.get('Reste', 0)
                     if pd.isna(reste_val) or str(reste_val).strip() == '' or str(reste_val).lower() == 'nan':
@@ -784,11 +777,10 @@ with tab_contrats:
                     reste_val = float(reste_val)
                 except:
                     reste_val = 0.0
-                
                 reste_style = "status-paid" if reste_val <= 0 else "status-pending"
                 reste_text = "PAYÉ" if reste_val <= 0 else f"{reste_val:,.3f}"
                 
-                # 9. EXTRAS (Caution)
+                # EXTRAS
                 try:
                     caution_val = row.get('Caution', 0)
                     if pd.isna(caution_val) or str(caution_val).strip() == '' or str(caution_val).lower() == 'nan':
@@ -797,21 +789,18 @@ with tab_contrats:
                 except:
                     caution_display = "0.000"
                 
-                # 10. KM SORTIE
+                # KM
                 try:
                     km_s = int(row.get('KM_Debut', 0))
                     if pd.isna(km_s): km_s = 0
                 except:
                     km_s = 0
-                
-                # 11. KM RETOUR
                 try:
                     km_r = int(row.get('KM_Fin', 0))
                     if pd.isna(km_r): km_r = 0
                 except:
                     km_r = 0
                 
-                # Construction de la ligne HTML
                 html_table += f"""
                     <tr>
                         <td>
@@ -856,7 +845,6 @@ with tab_contrats:
                     </tr>
                 """
             except Exception as e:
-                # Si une ligne cause une erreur, on la saute
                 continue
         
         html_table += "</tbody></table>"
@@ -864,7 +852,9 @@ with tab_contrats:
     else:
         st.info("Aucun contrat ou mouvement enregistré.")
 
-# --- TAB 3 : RECEPTION LOGISTIQUE ---
+# ============================================================
+# TAB 3 : RECEPTION LOGISTIQUE
+# ============================================================
 with tab_logistique:
     st.markdown("### 🔑 Terminal de Restitution et Clôture")
     if 'Statut_Mouvement' in df_mouvs.columns:
@@ -907,7 +897,9 @@ with tab_logistique:
                 st.write(f"**Reste dû :** {row_sel.get('Reste', '0')} DT")
     else: st.info("Aucun déplacement en cours.")
 
-# --- TAB 4 : PERFORMANCE ---
+# ============================================================
+# TAB 4 : PERFORMANCE
+# ============================================================
 with tab_analytics:
     st.markdown("### 📊 Chiffre d'Affaires & Synthèse Logistique du Jour")
     day_target = st.date_input("Sélectionner la journée d'analyse :", datetime.now())
@@ -951,7 +943,9 @@ with tab_analytics:
                 st.dataframe(entrees_final, use_container_width=True, hide_index=True)
             else: st.info("Aucun retour physique enregistré à cette date.")
 
-# --- TAB 5 : VIDANGES ---
+# ============================================================
+# TAB 5 : VIDANGES
+# ============================================================
 with tab_vidange:
     st.markdown("### 🔧 Tableau de bord de Maintenance & Vidanges Automatisé")
     if not df_vidanges.empty:
@@ -1004,7 +998,9 @@ with tab_vidange:
                 st.cache_data.clear()
                 st.rerun()
 
-# --- TAB 6 : CRM ---
+# ============================================================
+# TAB 6 : CRM
+# ============================================================
 with tab_crm:
     st.markdown("### 👥 Banque d'Information des Conducteurs & Profils Clients")
     c1, c2 = st.columns([5, 4])
@@ -1094,7 +1090,9 @@ with tab_crm:
                     st.rerun()
                 else: st.error("Veuillez remplir les champs obligatoires (*)")
 
-# --- TAB 7 : ADMIN ---
+# ============================================================
+# TAB 7 : ADMIN
+# ============================================================
 with tab_admin:
     st.markdown("### ⚙️ Panneau de Configuration Système")
     st.warning("Attention : Ces actions sont irréversibles.")
