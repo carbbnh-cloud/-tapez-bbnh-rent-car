@@ -138,12 +138,7 @@ div[data-testid="stDataFrame"] {
 }
 .status-paid { background-color: #e6f7ed; color: #28a745; border: 1px solid #28a745; }
 .status-pending { background-color: #fff4e6; color: #fd7e14; border: 1px solid #fd7e14; }
-.km-box {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    align-items: center;
-}
+.km-box { display: flex; flex-direction: column; gap: 2px; align-items: center; }
 .km-value { font-weight: bold; margin-bottom: 2px; }
 .km-indicator {
     width: 80px;
@@ -598,7 +593,7 @@ tab_planning, tab_contrats, tab_logistique, tab_analytics, tab_vidange, tab_crm,
     "📊 SUIVI DES PERFORMANCES", "🔧 SUIVI DES VIDANGES", "👥 COMPTE CONDUCTEURS (CRM)", "⚙️ PANNEAU DE CONFIGURATION"
 ])
 
-# --- TAB 1 : PLANNING ---
+# --- TAB 1 : PLANNING (AVEC COULEURS CORRIGÉES) ---
 with tab_planning:
     st.markdown("### 🗓️ Vue Globale & Filtres Intelligents")
     f_col_car, f_col_date_start, f_col_date_target = st.columns([2, 1.5, 1.5])
@@ -653,9 +648,14 @@ with tab_planning:
                                     suivi_jours[m_v][key_day]["heure_retour"] = h_fin_label
                                 
                                 if not (suivi_jours[m_v][key_day]["depart"] and suivi_jours[m_v][key_day]["fin"]):
-                                    if "garage" in s_v or "maintenance" in s_v: suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
-                                    elif "réservation" in s_v: suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
-                                    else: suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                    # 🔧 CORRECTION COULEURS : Détection avec et sans accents
+                                    s_v_lower = s_v.lower()
+                                    if "garage" in s_v_lower or "maintenance" in s_v_lower:
+                                        suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
+                                    elif "réservation" in s_v_lower or "reservation" in s_v_lower:
+                                        suivi_jours[m_v][key_day]["desc"] = f"🔴 RESERVATION : [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                    else:
+                                        suivi_jours[m_v][key_day]["desc"] = f"🟢 LOCATION : [{h_deb_label}➔{h_fin_label}] {client_v}"
                     except: pass
 
             for idx, row in df_final_grid.iterrows():
@@ -667,32 +667,33 @@ with tab_planning:
                                 df_final_grid.at[idx, key_day] = f"🔵 🛬{data['heure_retour']} {data['client_entrant']} / 🛫{data['heure_sortie']} {data['client_sortant']}"
                             elif data["desc"] != "": df_final_grid.at[idx, key_day] = data["desc"]
 
-           def style_bbnh_theme(val):
-    val_str = str(val).lower()
-    
-    # Disponible (blanc)
-    if "disponible" in val_str or "●" in val_str:
-        return "background-color: #ffffff !important; color: #111827 !important; font-size: 11px !important; font-weight: 600 !important; text-align: center !important; border: 1px solid #e5e7eb !important;"
-    
-    # Retour + Départ même jour (bleu)
-    elif "🛬" in val_str and "🛫" in val_str:
-        return "background-color: #1d4ed8 !important; color: #ffffff !important; font-weight: 700 !important; font-size: 10px !important; border: 2px solid #60a5fa !important;"
-    
-    # Garage / Maintenance (jaune)
-    elif "garage" in val_str or "maintenance" in val_str or "🛠️" in val_str:
-        return "background-color: #eab308 !important; color: #1e1b4b !important; font-weight: 700 !important; font-size: 11px !important;"
-    
-    # Réservation (rouge)
-    elif "réservation" in val_str or "reservation" in val_str or "🔴" in val_str:
-        return "background-color: #dc2626 !important; color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;"
-    
-    # Location (vert)
-    elif "location" in val_str or "🟢" in val_str:
-        return "background-color: #16a34a !important; color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;"
-    
-    # Par défaut (noir avec bordure rouge)
-    else:
-        return "background-color: #090b0e !important; color: #ffffff !important; font-weight: 700 !important; font-size: 12px !important; border-right: 3px solid #e60000 !important;"
+            # 🔧 FONCTION STYLE CORRIGÉE AVEC !important
+            def style_bbnh_theme(val):
+                val_str = str(val).lower()
+                
+                # Disponible (blanc)
+                if "disponible" in val_str or "●" in val_str:
+                    return "background-color: #ffffff !important; color: #111827 !important; font-size: 11px !important; font-weight: 600 !important; text-align: center !important; border: 1px solid #e5e7eb !important;"
+                
+                # Retour + Départ même jour (bleu)
+                elif "🛬" in val_str and "🛫" in val_str:
+                    return "background-color: #1d4ed8 !important; color: #ffffff !important; font-weight: 700 !important; font-size: 10px !important; border: 2px solid #60a5fa !important;"
+                
+                # Garage / Maintenance (jaune)
+                elif "garage" in val_str or "maintenance" in val_str or "🛠️" in val_str:
+                    return "background-color: #eab308 !important; color: #1e1b4b !important; font-weight: 700 !important; font-size: 11px !important;"
+                
+                # Réservation (rouge)
+                elif "réservation" in val_str or "reservation" in val_str or "🔴" in val_str:
+                    return "background-color: #dc2626 !important; color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;"
+                
+                # Location (vert)
+                elif "location" in val_str or "🟢" in val_str:
+                    return "background-color: #16a34a !important; color: #ffffff !important; font-weight: 600 !important; font-size: 11px !important;"
+                
+                # Par défaut (noir avec bordure rouge)
+                else:
+                    return "background-color: #090b0e !important; color: #ffffff !important; font-weight: 700 !important; font-size: 12px !important; border-right: 3px solid #e60000 !important;"
 
             target_col_str = recherche_date.strftime("%d/%m")
             cols_ordonnees = ['Flotte BBNH']
@@ -701,20 +702,16 @@ with tab_planning:
                 cols_ordonnees += nom_colonnes[max(0, idx_target - 2):min(365, idx_target + 12)]
             st.dataframe(df_final_grid[cols_ordonnees].style.map(style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH']), use_container_width=True, height=800)
 
-# ============================================================
-# TAB 2 : LISTE DE CONTRAT (VERSION CORRIGÉE)
-# ============================================================
+# --- TAB 2 : LISTE DE CONTRAT (VERSION CORRIGÉE) ---
 with tab_contrats:
     st.markdown("### 📄 Liste Détaillée des Contrats & Mouvements")
     
-    # Trier par ID décroissant
     if 'id' in df_mouvs.columns:
         df_contrats_list = df_mouvs.sort_values(by='id', ascending=False)
     else:
         df_contrats_list = df_mouvs
     
     if not df_contrats_list.empty:
-        # Construction du tableau HTML
         html_table = """
         <table class="contract-table">
             <thead>
@@ -737,17 +734,14 @@ with tab_contrats:
         
         for _, row in df_contrats_list.iterrows():
             try:
-                # 1. MATRICULE
                 matricule = str(row.get('Matricule', 'N/A')).strip()
                 
-                # 2. NUMÉRO DE TÉLÉPHONE (recherche avec tolérance)
+                # 🔧 TÉLÉPHONE avec tolérance
                 tel = "N/A"
                 client = str(row.get('Client', '')).strip()
                 if client and client != 'nan' and client != '' and not df_clients.empty:
-                    # Recherche exacte d'abord
                     df_tel = df_clients[df_clients['Nom'] == client]
                     if df_tel.empty:
-                        # Recherche partielle si échec
                         df_tel = df_clients[df_clients['Nom'].str.contains(client, case=False, na=False)]
                     
                     if not df_tel.empty:
@@ -755,7 +749,7 @@ with tab_contrats:
                         if pd.notna(tel_val) and str(tel_val).strip() != '' and str(tel_val).lower() != 'nan':
                             tel = str(tel_val)
                 
-                # 3. N° CONTRAT (formaté #0001)
+                # 🔧 N° CONTRAT formaté
                 if 'id' in row.index and pd.notna(row.get('id')):
                     try:
                         num_contrat = f"#{int(row.get('id', 0)):04d}"
@@ -764,28 +758,18 @@ with tab_contrats:
                 else:
                     num_contrat = matricule
                 
-                # 4. DATE DÉPART
+                # DATES
                 try:
                     d_dep = datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d").strftime("%d/%m/%Y")
-                except:
-                    d_dep = str(row.get('Date_Debut', 'N/A'))
-                
-                # 5. DATE RETOUR
-                try:
                     d_ret = datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d").strftime("%d/%m/%Y")
-                except:
-                    d_ret = str(row.get('Date_Fin', 'N/A'))
-                
-                # 6. NOMBRE DE JOURS
-                try:
-                    d_dep_dt = datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d")
-                    d_ret_dt = datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d")
-                    jours = (d_ret_dt - d_dep_dt).days
+                    jours = (datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d") - datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d")).days
                     if jours <= 0: jours = 1
                 except:
+                    d_dep = str(row.get('Date_Debut', 'N/A'))
+                    d_ret = str(row.get('Date_Fin', 'N/A'))
                     jours = "?"
                 
-                # 7. MONTANT TTC
+                # MONTANT
                 try:
                     prix_val = row.get('Prix', 0)
                     if pd.isna(prix_val) or str(prix_val).strip() == '' or str(prix_val).lower() == 'nan':
@@ -794,7 +778,7 @@ with tab_contrats:
                 except:
                     montant = "0.000"
                 
-                # 8. RESTE
+                # RESTE
                 try:
                     reste_val = row.get('Reste', 0)
                     if pd.isna(reste_val) or str(reste_val).strip() == '' or str(reste_val).lower() == 'nan':
@@ -802,11 +786,10 @@ with tab_contrats:
                     reste_val = float(reste_val)
                 except:
                     reste_val = 0.0
-                
                 reste_style = "status-paid" if reste_val <= 0 else "status-pending"
                 reste_text = "PAYÉ" if reste_val <= 0 else f"{reste_val:,.3f}"
                 
-                # 9. EXTRAS (Caution)
+                # EXTRAS
                 try:
                     caution_val = row.get('Caution', 0)
                     if pd.isna(caution_val) or str(caution_val).strip() == '' or str(caution_val).lower() == 'nan':
@@ -815,21 +798,18 @@ with tab_contrats:
                 except:
                     caution_display = "0.000"
                 
-                # 10. KM SORTIE
+                # KM
                 try:
                     km_s = int(row.get('KM_Debut', 0))
                     if pd.isna(km_s): km_s = 0
                 except:
                     km_s = 0
-                
-                # 11. KM RETOUR
                 try:
                     km_r = int(row.get('KM_Fin', 0))
                     if pd.isna(km_r): km_r = 0
                 except:
                     km_r = 0
                 
-                # Construction de la ligne HTML
                 html_table += f"""
                     <tr>
                         <td>
@@ -874,7 +854,6 @@ with tab_contrats:
                     </tr>
                 """
             except Exception as e:
-                # Si une ligne cause une erreur, on la saute
                 continue
         
         html_table += "</tbody></table>"
