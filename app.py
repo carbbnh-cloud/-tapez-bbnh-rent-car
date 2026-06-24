@@ -691,15 +691,20 @@ with tab_contrats:
         """
         for _, row in df_contrats_list.iterrows():
             matricule = str(row.get('Matricule', 'N/A'))
-            client = str(row.get('Client', ''))
+            client = str(row.get('Client', '')).strip()
             
-            # Recherche du téléphone avec gestion d'erreur
+            # 🔧 CORRECTION 1 : Recherche du téléphone avec tolérance
             tel = "N/A"
-            if client and client != 'nan' and not df_clients.empty:
+            if client and client != 'nan' and client != '' and not df_clients.empty:
+                # Recherche exacte d'abord
                 df_tel = df_clients[df_clients['Nom'] == client]
+                if df_tel.empty:
+                    # Recherche partielle si exacte échoue
+                    df_tel = df_clients[df_clients['Nom'].str.contains(client, case=False, na=False)]
+                
                 if not df_tel.empty:
                     tel_val = df_tel.iloc[0].get('Numéro de téléphone', 'N/A')
-                    if pd.notna(tel_val) and str(tel_val).strip() != '':
+                    if pd.notna(tel_val) and str(tel_val).strip() != '' and str(tel_val).lower() != 'nan':
                         tel = str(tel_val)
             
             # Formatage des dates
@@ -716,10 +721,13 @@ with tab_contrats:
             h_dep = str(row.get('Heure_Debut', '00:00'))
             h_ret = str(row.get('Heure_Fin', '00:00'))
             
+            # 🔧 CORRECTION 2 : N° Contrat formaté
+            num_contrat = f"#{int(row.get('id', 0)):04d}" if 'id' in row.index and pd.notna(row.get('id')) else matricule
+            
             # Gestion du prix
             try:
                 prix_val = row.get('Prix', 0)
-                if pd.isna(prix_val) or str(prix_val).strip() == '':
+                if pd.isna(prix_val) or str(prix_val).strip() == '' or str(prix_val).lower() == 'nan':
                     prix_val = 0
                 montant = f"{float(prix_val):,.3f}"
             except:
@@ -728,7 +736,7 @@ with tab_contrats:
             # Gestion du reste
             try:
                 reste_val = row.get('Reste', 0)
-                if pd.isna(reste_val) or str(reste_val).strip() == '':
+                if pd.isna(reste_val) or str(reste_val).strip() == '' or str(reste_val).lower() == 'nan':
                     reste_val = 0
                 reste_val = float(reste_val)
             except:
@@ -752,11 +760,9 @@ with tab_contrats:
             km_ess_s, km_j_s, km_dt_s = f"{km_s // 100} Km/Ess", f"{km_s // 200} Km/j", f"{(km_s % 1000):,.3f} DT"
             km_ess_r, km_j_r, km_dt_r = f"{km_r // 100} Km/Ess", f"{km_r // 200} Km/j", f"{(km_r % 1000):,.3f} DT"
             
-            num_contrat = str(row.get('id', 'N/A')) if 'id' in row.index else matricule
-            
             try:
                 caution_val = row.get('Caution', 0)
-                if pd.isna(caution_val) or str(caution_val).strip() == '':
+                if pd.isna(caution_val) or str(caution_val).strip() == '' or str(caution_val).lower() == 'nan':
                     caution_val = 0
                 caution_display = f"{float(caution_val):,.3f}"
             except:
