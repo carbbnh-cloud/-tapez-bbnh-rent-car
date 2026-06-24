@@ -5,7 +5,11 @@ import base64
 from datetime import datetime, timedelta, time
 from supabase import create_client, Client
 from dotenv import load_dotenv
-
+from dotenv import load_dotenv
+load_dotenv()
+import os
+print("URL :", os.getenv("SUPABASE_URL"))
+print("KEY :", os.getenv("SUPABASE_KEY")[:20] + "..." if os.getenv("SUPABASE_KEY") else "MANQUANTE")
 # ============================================
 # CONFIGURATION SUPABASE
 # ============================================
