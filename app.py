@@ -266,11 +266,11 @@ def formater_heure_propre(valeur_excel):
         return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
     return '00:00'
 
-# --- CHARGEMENT DES DONNÉES ---
+# --- CHARGEMENT DES DONNÉES (NOMS CORRECTS) ---
 df_voitures = get_all_data("stock")
-df_clients = get_all_data("clients")
-df_mouvs = get_all_data("mouvements")
-df_vidanges = get_all_data("vidanges")
+df_clients = get_all_data("client")  # SINGULIER
+df_mouvs = get_all_data("mouvement")  # SINGULIER
+df_vidanges = get_all_data("vidange")  # SINGULIER
 df_contrats = get_all_data("contrats")
 
 # --- LISTES POUR SELECTBOX ---
@@ -297,7 +297,7 @@ with st.sidebar:
         "📝 Nouveau Contrat / Réservation", 
         "🚗 Ajouter un Véhicule à la Flotte",
         "🗑️ Supprimer un Véhicule de la Flotte",
-        "⚙️ Modifier un Dossier (Contrat/Réservation)",
+        "️ Modifier un Dossier (Contrat/Réservation)",
         "❌ Supprimer une opération"
     ], label_visibility="collapsed")
 
@@ -310,7 +310,7 @@ with st.sidebar:
                 df_cli = pd.read_excel(f_clients, sheet_name='Base de Données', skiprows=1)
                 df_cli = df_cli.loc[:, ~df_cli.columns.str.contains('^Unnamed')]
                 for _, row in df_cli.iterrows():
-                    insert_data("clients", row.to_dict())
+                    insert_data("client", row.to_dict())
                 st.success("Données clients synchronisées !")
                 st.rerun()
             except Exception as e:
@@ -373,7 +373,7 @@ with st.sidebar:
                         "KM_Debut": km_d,
                         "KM_Fin": km_f
                     }
-                    insert_data("mouvements", data_mouv)
+                    insert_data("mouvement", data_mouv)
                 
                 st.success("Données intégrées avec succès !")
                 st.rerun()
@@ -444,7 +444,7 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
                 "Image CIN": img_cin_b64,
                 "Image Permis": img_permis_b64
             }
-            insert_data("clients", client_data)
+            insert_data("client", client_data)
         
         if "Contrat" in nature:
             contrat_data = {
@@ -480,9 +480,9 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
             "KM_Debut": int(km_debut),
             "KM_Fin": 0
         }
-        insert_data("mouvements", mouv_data)
+        insert_data("mouvement", mouv_data)
         
-        update_data("vidanges", {"KM_Recent": int(km_debut), "Date_Mise_A_Jour": str_d1}, {"Matricule": vehicule})
+        update_data("vidange", {"KM_Recent": int(km_debut), "Date_Mise_A_Jour": str_d1}, {"Matricule": vehicule})
         
         st.success("Fiche créée avec succès !")
         st.rerun()
@@ -515,7 +515,7 @@ elif menu_action == "🚗 Ajouter un Véhicule à la Flotte":
                     "KM_Dernier_Vidange": 0,
                     "KM_Recent": 0
                 }
-                insert_data("vidanges", vidange_data)
+                insert_data("vidange", vidange_data)
                 
                 st.success("Véhicule enregistré !")
                 st.rerun()
@@ -530,7 +530,7 @@ elif menu_action == "🗑️ Supprimer un Véhicule de la Flotte":
                 if confirmer_suppression:
                     matricule_pure = str(vehicule_a_retirer).split(" — ")[0].strip()
                     delete_data("stock", {"Matricule": matricule_pure})
-                    delete_data("vidanges", {"Matricule": matricule_pure})
+                    delete_data("vidange", {"Matricule": matricule_pure})
                     st.success("Véhicule retiré.")
                     st.rerun()
 
@@ -610,7 +610,7 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
                 "N° Permis": mod_permis,
                 "Date Délivrance Permis": mod_date_permis.strftime("%Y-%m-%d")
             }
-            update_data("clients", client_update, {"CIN": mod_cin})
+            update_data("client", client_update, {"CIN": mod_cin})
             
             mouv_update = {
                 "Matricule": mod_vehicule,
@@ -628,9 +628,9 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
                 "Info_Note": mod_note,
                 "KM_Debut": int(mod_km_deb)
             }
-            update_data("mouvements", mouv_update, {"id": row_init.get('id')})
+            update_data("mouvement", mouv_update, {"id": row_init.get('id')})
             
-            update_data("vidanges", {"KM_Recent": int(mod_km_deb), "Date_Mise_A_Jour": str_mod_d1}, {"Matricule": mod_vehicule})
+            update_data("vidange", {"KM_Recent": int(mod_km_deb), "Date_Mise_A_Jour": str_mod_d1}, {"Matricule": mod_vehicule})
             
             st.success("Toutes les données ont été mises à jour avec succès !")
             st.rerun()
@@ -648,7 +648,7 @@ elif menu_action == "❌ Supprimer une opération":
             if st.form_submit_button("💥 RETIRER DU PLANNING"):
                 if confirmer_action:
                     id_to_delete = int(mouv_selectionne.split(" | ")[0].replace("ID: ", "").strip())
-                    delete_data("mouvements", {"id": id_to_delete})
+                    delete_data("mouvement", {"id": id_to_delete})
                     st.success("Opération effacée !")
                     st.rerun()
 
@@ -792,7 +792,7 @@ with tab_planning:
                                     if "garage" in s_v or "maintenance" in s_v:
                                         suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
                                     elif "réservation" in s_v:
-                                        suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                        suivi_jours[m_v][key_day]["desc"] = f" [{h_deb_label}➔{h_fin_label}] {client_v}"
                                     else:
                                         suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}➔{h_fin_label}] {client_v}"
                     except:
@@ -829,7 +829,7 @@ with tab_planning:
                 idx_target = nom_colonnes.index(target_col_str)
                 cols_ordonnees += nom_colonnes[max(0, idx_target - 2):min(365, idx_target + 12)]
 
-            st.dataframe(df_final_grid[cols_ordonnees].style.map(style_bbnh_theme, subset=[c for c in cols_ordonnes if c != 'Flotte BBNH']), use_container_width=True, height=800)
+            st.dataframe(df_final_grid[cols_ordonnees].style.map(style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH']), use_container_width=True, height=800)
 
 # --- TAB 2 : LISTE DE CONTRAT (STYLE IMAGE) ---
 with tab_contrats:
@@ -928,7 +928,7 @@ with tab_contrats:
                     <td>
                         <div class="contract-num">{row.get('id', 'N/A')}</div>
                         <div style="display:flex; justify-content:center; gap:5px; margin-top:5px;">
-                            <span>📄</span> <span>🖨️</span>
+                            <span>📄</span> <span>️</span>
                         </div>
                     </td>
                     <td>
@@ -1011,7 +1011,7 @@ with tab_logistique:
                 str_t_reel = t_reel.strftime("%H:%M")
                 vehicule_rentre = str(res_dep.iloc[0].get('Matricule', '')) if not res_dep.empty else ''
                 
-                update_data("mouvements", {
+                update_data("mouvement", {
                     "Statut_Mouvement": "Retourné",
                     "Date_Fin": d_reel.strftime("%Y-%m-%d"),
                     "Heure_Fin": str_t_reel,
@@ -1019,7 +1019,7 @@ with tab_logistique:
                     "KM_Fin": int(km_fin)
                 }, {"id": int(id_mouv)})
                 
-                update_data("vidanges", {
+                update_data("vidange", {
                     "KM_Recent": int(km_fin),
                     "Date_Mise_A_Jour": d_reel.strftime("%Y-%m-%d")
                 }, {"Matricule": vehicule_rentre})
@@ -1077,7 +1077,7 @@ with tab_analytics:
                     columns={
                         'Matricule': '🚘 Matricule',
                         'Client': '👤 Client / Conducteur',
-                        'Date_Debut': '📅 DATE SORTIE',
+                        'Date_Debut': ' DATE SORTIE',
                         'Date_Fin': '📅 DATE RETOUR PRÉVUE',
                         'Prix': '💰 PRIX (DT)',
                         'KM_Debut': '🔢 KM SORTIE'
@@ -1095,7 +1095,7 @@ with tab_analytics:
                 
                 entrees_final = entrees[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Heure_Retour_Propre', 'Lieu_Reception', 'Prix', 'KM_Debut', 'KM_Fin', 'KM Roulé']].rename(
                     columns={
-                        'Matricule': '🚘 Matricule',
+                        'Matricule': ' Matricule',
                         'Client': '👤 Client / Conducteur',
                         'Date_Debut': '📅 DATE SORTIE',
                         'Date_Fin': '📅 DATE RETOUR',
@@ -1184,14 +1184,14 @@ with tab_vidange:
                 date_historique_str = date_dernier_manuel.strftime("%Y-%m-%d")
                 
                 if action_sync:
-                    update_data("vidanges", {
+                    update_data("vidange", {
                         "KM_Recent": int(nouveau_km_actuel),
                         "KM_Dernier_Vidange": int(nouveau_km_actuel),
                         "Date_Dernier_Vidange": date_operation_str,
                         "Date_Mise_A_Jour": date_operation_str
                     }, {"Matricule": v_select})
                 else:
-                    update_data("vidanges", {
+                    update_data("vidange", {
                         "KM_Recent": int(nouveau_km_actuel),
                         "KM_Dernier_Vidange": int(dernier_km_vidange_input),
                         "Date_Dernier_Vidange": date_historique_str,
@@ -1244,14 +1244,14 @@ with tab_crm:
                         col_btn_mod, col_btn_sup = st.columns(2)
                         
                         with col_btn_mod:
-                            if st.button(f"✏️ MODIFIER CE PROFIL", key=f"btn_edit_{unique_suffix}"):
+                            if st.button(f"️ MODIFIER CE PROFIL", key=f"btn_edit_{unique_suffix}"):
                                 st.session_state[f"mode_edition_{unique_suffix}"] = True
                         
                         with col_btn_sup:
                             check_sup = st.checkbox("Confirmer la suppression", key=f"chk_del_{unique_suffix}")
                             if st.button(f"🗑️ SUPPRIMER CE CLIENT", key=f"btn_del_{unique_suffix}"):
                                 if check_sup:
-                                    delete_data("clients", {"CIN": cin_client_actuel})
+                                    delete_data("client", {"CIN": cin_client_actuel})
                                     st.success(f"Client [CIN: {cin_client_actuel}] supprimé définitivement.")
                                     st.rerun()
                                 else:
@@ -1296,7 +1296,7 @@ with tab_crm:
                                     if f_per_remplace:
                                         client_update["Image Permis"] = encoder_image_base64(f_per_remplace)
                                     
-                                    update_data("clients", client_update, {"CIN": cin_client_actuel})
+                                    update_data("client", client_update, {"CIN": cin_client_actuel})
                                     
                                     st.success("Profil mis à jour !")
                                     st.session_state[f"mode_edition_{unique_suffix}"] = False
@@ -1316,7 +1316,7 @@ with tab_crm:
             f_cin_new = st.file_uploader("Image CIN", type=["png", "jpg", "jpeg"])
             f_per_new = st.file_uploader("Image Permis", type=["png", "jpg", "jpeg"])
             
-            if st.form_submit_button("⚡ CRÉER LE PROFIL CLIENT"):
+            if st.form_submit_button(" CRÉER LE PROFIL CLIENT"):
                 if n_prenom and n_nom and n_cin:
                     client_data = {
                         "Prénom": n_prenom,
@@ -1329,7 +1329,7 @@ with tab_crm:
                         "Image CIN": encoder_image_base64(f_cin_new),
                         "Image Permis": encoder_image_base64(f_per_new)
                     }
-                    insert_data("clients", client_data)
+                    insert_data("client", client_data)
                     st.success("Nouveau client enregistré !")
                     st.rerun()
                 else:
@@ -1345,13 +1345,13 @@ with tab_admin:
     with col_a1:
         if st.button("🗑️ PURGER TOUS LES MOUVEMENTS"):
             if st.checkbox("Confirmer la purge des mouvements"):
-                response = supabase.table("mouvements").delete().neq("id", 0).execute()
+                response = supabase.table("mouvement").delete().neq("id", 0).execute()
                 st.success("Tous les mouvements ont été effacés.")
                 st.rerun()
     
     with col_a2:
-        if st.button("🗑️ RÉINITIALISER LA BASE CLIENTS"):
+        if st.button("️ RÉINITIALISER LA BASE CLIENTS"):
             if st.checkbox("Confirmer la purge des clients"):
-                response = supabase.table("clients").delete().neq("CIN", "").execute()
+                response = supabase.table("client").delete().neq("CIN", "").execute()
                 st.success("La base clients a été réinitialisée.")
                 st.rerun()
