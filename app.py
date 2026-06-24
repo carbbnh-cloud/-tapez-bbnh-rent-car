@@ -5,17 +5,12 @@ import base64
 from datetime import datetime, timedelta, time
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from dotenv import load_dotenv
-load_dotenv()
-import os
-print("URL :", os.getenv("https://pwsxxmmlscvazaictocg.supabase.co"))
-print("KEY :", os.getenv("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3h4bW1sc2N2YXphaWN0b2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2ODk2MzUsImV4cCI6MjA5NzI2NTYzNX0.Dhg-fnZ_OMkk59e9w58X6DzZRr-Y3nd8PBq_cc9SH48")[:20] + "..." if os.getenv("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3h4bW1sc2N2YXphaWN0b2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2ODk2MzUsImV4cCI6MjA5NzI2NTYzNX0.Dhg-fnZ_OMkk59e9w58X6DzZRr-Y3nd8PBq_cc9SH48") else "MANQUANTE")
-# ============================================
+
 # CONFIGURATION SUPABASE
 # ============================================
 load_dotenv()
-SUPABASE_URL = os.getenv("https://pwsxxmmlscvazaictocg.supabase.co")
-SUPABASE_KEY = os.getenv("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3c3h4bW1sc2N2YXphaWN0b2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2ODk2MzUsImV4cCI6MjA5NzI2NTYzNX0.Dhg-fnZ_OMkk59e9w58X6DzZRr-Y3nd8PBq_cc9SH48")
+SUPABASE_URL = os.getenv("")
+SUPABASE_KEY = os.getenv("")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     st.error("⚠️ Variables SUPABASE_URL et SUPABASE_KEY manquantes dans .env")
