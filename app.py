@@ -16,7 +16,7 @@ st.set_page_config(
 # --- STYLE CSS AVANCÉ : CHARTE GRAPHIQUE BBNH ---
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 html, body, [data-testid="stAppViewContainer"] {
     font-family: 'Plus Jakarta Sans', sans-serif !important;
     background-color: #0f1115 !important;
@@ -302,6 +302,7 @@ with st.sidebar:
     menu_action = st.radio(" ", [
         "🔍 Mode Visionneuse", 
         "📝 Nouveau Contrat / Réservation", 
+        "🔄 Convertir Réservation → Contrat",
         "🚗 Ajouter un Véhicule à la Flotte",
         "🗑️ Supprimer un Véhicule de la Flotte",
         "⚙️ Modifier un Dossier (Contrat/Réservation)",
@@ -394,6 +395,139 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
         st.cache_data.clear()
         st.rerun()
 
+# ============================================================
+# 🔄 NOUVELLE FONCTIONNALITÉ : CONVERTIR RÉSERVATION → CONTRAT
+# ============================================================
+elif menu_action == "🔄 Convertir Réservation → Contrat":
+    st.sidebar.markdown("### 🔄 Convertir une Réservation en Contrat")
+    
+    # Filtrer uniquement les réservations
+    if 'Type_Statut' in df_mouvs.columns and not df_mouvs.empty:
+        df_reservations = df_mouvs[
+            df_mouvs['Type_Statut'].astype(str).str.lower().str.contains('réservation|reservation')
+        ]
+    else:
+        df_reservations = pd.DataFrame()
+    
+    if df_reservations.empty:
+        st.sidebar.warning("⚠️ Aucune réservation trouvée à convertir.")
+    else:
+        # Liste des réservations
+        liste_reservations = [
+            f"ID: {r.get('id', idx)} | {r.get('Matricule', '')} — {r.get('Client', '')} ({r.get('Date_Debut', '')})" 
+            for idx, r in df_reservations.iterrows()
+        ]
+        
+        reservation_choisie = st.sidebar.selectbox("Sélectionner la réservation à convertir :", liste_reservations)
+        
+        if reservation_choisie:
+            # Extraire l'ID
+            id_resa = int(reservation_choisie.split(" | ")[0].replace("ID: ", "").strip())
+            row_resa = df_reservations[df_reservations['id'] == id_resa].iloc[0]
+            
+            # Afficher les détails
+            st.sidebar.markdown("---")
+            st.sidebar.markdown("**📋 Détails de la réservation :**")
+            st.sidebar.write(f"🚗 **Véhicule :** {row_resa.get('Matricule', '')}")
+            st.sidebar.write(f"👤 **Client :** {row_resa.get('Client', '')}")
+            st.sidebar.write(f"📅 **Début :** {row_resa.get('Date_Debut', '')} à {row_resa.get('Heure_Debut', '')}")
+            st.sidebar.write(f"📅 **Fin :** {row_resa.get('Date_Fin', '')} à {row_resa.get('Heure_Fin', '')}")
+            st.sidebar.write(f"💰 **Prix :** {row_resa.get('Prix', 0)} DT")
+            
+            # Options de conversion
+            st.sidebar.markdown("---")
+            st.sidebar.markdown("**⚙️ Options de conversion :**")
+            
+            generer_num_contrat = st.sidebar.checkbox("Générer un N° de contrat automatique", value=True)
+            if generer_num_contrat:
+                num_contrat_auto = f"BBNH-{datetime.now().strftime('%d%H%S')}"
+                st.sidebar.info(f"📄 N° Contrat généré : **{num_contrat_auto}**")
+            else:
+                num_contrat_auto = st.sidebar.text_input("N° Contrat personnalisé :", value=f"BBNH-{datetime.now().strftime('%d%H%S')}")
+            
+            mettre_a_jour_infos = st.sidebar.checkbox("Mettre à jour les informations (dates, prix, etc.)", value=False)
+            
+            new_d1 = row_resa.get('Date_Debut', '')
+            new_d2 = row_resa.get('Date_Fin', '')
+            new_prix = float(row_resa.get('Prix', 0)) if pd.notna(row_resa.get('Prix', 0)) else 0.0
+            new_caution = 0.0
+            new_reste = new_prix
+            
+            if mettre_a_jour_infos:
+                st.sidebar.markdown("**📝 Nouvelles informations :**")
+                
+                try:
+                    init_d1 = datetime.strptime(str(row_resa.get('Date_Debut', '')), "%Y-%m-%d").date()
+                except:
+                    init_d1 = datetime.now().date()
+                try:
+                    init_d2 = datetime.strptime(str(row_resa.get('Date_Fin', '')), "%Y-%m-%d").date()
+                except:
+                    init_d2 = datetime.now().date()
+                
+                new_d1_date = st.sidebar.date_input("Nouvelle date début :", init_d1, key="conv_d1")
+                new_d2_date = st.sidebar.date_input("Nouvelle date fin :", init_d2, key="conv_d2")
+                new_d1 = new_d1_date.strftime("%Y-%m-%d")
+                new_d2 = new_d2_date.strftime("%Y-%m-%d")
+                
+                new_prix = st.sidebar.number_input("Nouveau prix total (DT) :", value=float(new_prix), min_value=0.0, step=1, key="conv_prix")
+                new_caution = st.sidebar.number_input("Nouvelle caution (DT) :", value=0, min_value=0, key="conv_cau")
+                new_reste = new_prix - new_caution
+                st.sidebar.markdown(f"**🔴 Reste à payer :** `{new_reste} DT`")
+            
+            # Bouton de conversion
+            st.sidebar.markdown("---")
+            if st.sidebar.button("✅ CONVERTIR EN CONTRAT", use_container_width=True):
+                try:
+                    # 1. Mettre à jour le mouvement (changer Type_Statut)
+                    update_data_mouv = {
+                        "Type_Statut": "Location",
+                        "Statut_Mouvement": "En cours"
+                    }
+                    
+                    if mettre_a_jour_infos:
+                        update_data_mouv.update({
+                            "Date_Debut": new_d1,
+                            "Date_Fin": new_d2,
+                            "Prix": str(new_prix),
+                            "Caution": str(new_caution),
+                            "Reste": str(new_reste)
+                        })
+                    
+                    update_row(T_MOUVEMENT, update_data_mouv, "id", id_resa)
+                    
+                    # 2. Récupérer le CIN du client
+                    cin_client = ""
+                    client_nom = str(row_resa.get('Client', ''))
+                    if not df_clients.empty and client_nom and client_nom != 'nan':
+                        df_cli_find = df_clients[df_clients['Nom'] == client_nom]
+                        if not df_cli_find.empty:
+                            cin_client = str(df_cli_find.iloc[0].get('CIN', ''))
+                    
+                    # 3. Créer l'entrée dans la table contrat (carbbnh)
+                    contrat_data = {
+                        "Num_Contrat": num_contrat_auto,
+                        "Matricule": row_resa.get('Matricule', ''),
+                        "Client_Nom": client_nom,
+                        "CIN_Client": cin_client,
+                        "Date_Debut": new_d1,
+                        "Heure_Debut": row_resa.get('Heure_Debut', ''),
+                        "Date_Fin": new_d2,
+                        "Heure_Fin": row_resa.get('Heure_Fin', ''),
+                        "Tarif_Jour": str(new_prix),
+                        "Montant_Total": str(new_prix),
+                        "Statut_Contrat": "Actif"
+                    }
+                    
+                    insert_row(T_CONTRAT, contrat_data)
+                    
+                    st.sidebar.success("✅ Réservation convertie en contrat avec succès !")
+                    st.cache_data.clear()
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.sidebar.error(f"❌ Erreur lors de la conversion : {e}")
+
 elif menu_action == "🚗 Ajouter un Véhicule à la Flotte":
     with st.sidebar.form("form_bbnh_add_car"):
         st.markdown("### 🚗 Nouveau Véhicule")
@@ -471,9 +605,9 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
         
         st.sidebar.markdown("👤 **Informations Conducteur**")
         mod_client = st.sidebar.text_input("Nom & Prénom du Conducteur : ", value=str(row_init.get('Client', '')))
-        mod_cin = st.sidebar.text_input("N° CIN : ", value=str(row_cli_init.get('CIN', '')))
+        mod_cin = st.sidebar.text_input("N° CIN : ", value=str(row_cli_init.get('CIN', '')) if not df_cli_spec.empty else "")
         mod_date_cin = st.sidebar.date_input("Date de Délivrance CIN : ", init_date_cin)
-        mod_permis = st.sidebar.text_input("N° Permis de Conduire : ", value=str(row_cli_init.get('N° Permis', '')))
+        mod_permis = st.sidebar.text_input("N° Permis de Conduire : ", value=str(row_cli_init.get('N° Permis', '')) if not df_cli_spec.empty else "")
         mod_date_permis = st.sidebar.date_input("Date de Délivrance Permis : ", init_date_permis)
         
         st.sidebar.markdown("---")
@@ -505,10 +639,26 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
             str_mod_d1, str_mod_d2 = mod_d1.strftime("%Y-%m-%d"), mod_d2.strftime("%Y-%m-%d")
             str_mod_t1, str_mod_t2 = mod_t1.strftime("%H:%M"), mod_t2.strftime("%H:%M")
             
-            update_row(T_CLIENT, {
-                "Nom": mod_client, "Date Délivrance CIN": mod_date_cin.strftime("%Y-%m-%d"),
-                "N° Permis": mod_permis, "Date Délivrance Permis": mod_date_permis.strftime("%Y-%m-%d")
-            }, "CIN", mod_cin)
+            # ✅ CORRECTION : Vérifier si le client existe avant update/insert
+            if mod_cin.strip():
+                client_existant = supabase.table(T_CLIENT).select("*").eq("CIN", mod_cin).execute()
+                
+                client_data = {
+                    "CIN": mod_cin,
+                    "Nom": mod_client,
+                    "Date Délivrance CIN": mod_date_cin.strftime("%Y-%m-%d"),
+                    "N° Permis": mod_permis,
+                    "Date Délivrance Permis": mod_date_permis.strftime("%Y-%m-%d")
+                }
+                
+                if client_existant.data:
+                    # Le client existe → mise à jour
+                    update_row(T_CLIENT, client_data, "CIN", mod_cin)
+                else:
+                    # Le client n'existe pas → insertion
+                    insert_row(T_CLIENT, client_data)
+            else:
+                st.warning("⚠️ CIN non renseigné, le client n'a pas été mis à jour.")
             
             update_row(T_MOUVEMENT, {
                 "Matricule": mod_vehicule, "Type_Statut": mod_nature, "Client": mod_client,
@@ -619,8 +769,8 @@ with tab_planning:
 
         if len(build_matrix) > 0:
             df_final_grid = pd.DataFrame(build_matrix)
+            suivi_jours = {}
             if not df_mouvs.empty and not df_final_grid.empty:
-                suivi_jours = {}
                 for _, mv in df_mouvs.iterrows():
                     if pd.isna(mv.get('Matricule')) or pd.isna(mv.get('Date_Debut')) or pd.isna(mv.get('Date_Fin')): continue
                     m_v = str(mv.get('Matricule', '')).strip()
@@ -649,7 +799,7 @@ with tab_planning:
                                 
                                 if not (suivi_jours[m_v][key_day]["depart"] and suivi_jours[m_v][key_day]["fin"]):
                                     if "garage" in s_v or "maintenance" in s_v: suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
-                                    elif "réservation" in s_v: suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                    elif "réservation" in s_v or "reservation" in s_v: suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
                                     else: suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}➔{h_fin_label}] {client_v}"
                     except: pass
 
@@ -693,13 +843,10 @@ with tab_contrats:
             matricule = str(row.get('Matricule', 'N/A'))
             client = str(row.get('Client', '')).strip()
             
-            # 🔧 CORRECTION 1 : Recherche du téléphone avec tolérance
             tel = "N/A"
             if client and client != 'nan' and client != '' and not df_clients.empty:
-                # Recherche exacte d'abord
                 df_tel = df_clients[df_clients['Nom'] == client]
                 if df_tel.empty:
-                    # Recherche partielle si exacte échoue
                     df_tel = df_clients[df_clients['Nom'].str.contains(client, case=False, na=False)]
                 
                 if not df_tel.empty:
@@ -707,7 +854,6 @@ with tab_contrats:
                     if pd.notna(tel_val) and str(tel_val).strip() != '' and str(tel_val).lower() != 'nan':
                         tel = str(tel_val)
             
-            # Formatage des dates
             try:
                 d_dep = datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d").strftime("%d/%m/%Y")
                 d_ret = datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d").strftime("%d/%m/%Y")
@@ -721,10 +867,8 @@ with tab_contrats:
             h_dep = str(row.get('Heure_Debut', '00:00'))
             h_ret = str(row.get('Heure_Fin', '00:00'))
             
-            # 🔧 CORRECTION 2 : N° Contrat formaté
             num_contrat = f"#{int(row.get('id', 0)):04d}" if 'id' in row.index and pd.notna(row.get('id')) else matricule
             
-            # Gestion du prix
             try:
                 prix_val = row.get('Prix', 0)
                 if pd.isna(prix_val) or str(prix_val).strip() == '' or str(prix_val).lower() == 'nan':
@@ -733,7 +877,6 @@ with tab_contrats:
             except:
                 montant = "0.000"
             
-            # Gestion du reste
             try:
                 reste_val = row.get('Reste', 0)
                 if pd.isna(reste_val) or str(reste_val).strip() == '' or str(reste_val).lower() == 'nan':
@@ -745,7 +888,6 @@ with tab_contrats:
             reste_style = "status-paid" if reste_val <= 0 else "status-pending"
             reste_text = "PAYÉ" if reste_val <= 0 else f"{reste_val:,.3f} DT"
             
-            # Gestion des KM
             try:
                 km_s = int(row.get('KM_Debut', 0))
                 if pd.isna(km_s): km_s = 0
