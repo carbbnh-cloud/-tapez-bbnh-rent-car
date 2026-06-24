@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- STYLE CSS ---
+# --- STYLE CSS AVANCÉ : CHARTE GRAPHIQUE BBNH ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700;800&display=swap');
@@ -29,15 +29,21 @@ section[data-testid="stSidebar"] {
     min-width: 450px !important;
     max-width: 450px !important;
 }
+div[data-testid="stSidebarUserContent"] { padding: 2rem 1.5rem !important; }
 .logo-container {
     background: #ffffff;
     padding: 16px;
     border-radius: 16px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
     margin-bottom: 25px;
     display: flex;
     justify-content: center;
     align-items: center;
+}
+div[data-testid="stRadio"] label {
+    font-size: 15px !important;
+    font-weight: 500 !important;
+    padding: 8px 4px !important;
 }
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px; 
@@ -47,10 +53,35 @@ section[data-testid="stSidebar"] {
     border: 1px solid #222733;
     margin-bottom: 25px;
 }
+.stTabs [data-baseweb="tab"] {
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: 600;
+    color: #9ca3af;
+    transition: all 0.2s ease;
+    border: none !important;
+}
 .stTabs [data-baseweb="tab"]:hover { background-color: #222733; color: #ffffff; }
 .stTabs [aria-selected="true"] { 
     background-color: #e60000 !important;
     color: #ffffff !important;
+    box-shadow: 0 4px 15px rgba(230, 0, 0, 0.4);
+}
+h1 { font-weight: 800 !important; letter-spacing: -1px !important; color: #ffffff !important; }
+h3 { color: #f3f4f6; font-weight: 700 !important; letter-spacing: -0.5px; }
+div[data-testid="stForm"] {
+    background: rgba(22, 25, 32, 0.8) !important;
+    border: 1px solid #2a3142 !important;
+    padding: 25px !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+}
+input, select, textarea, div[data-baseweb="select"] {
+    background-color: #1a1e26 !important;
+    color: #ffffff !important;
+    border: 1px solid #2a3142 !important;
+    border-radius: 10px !important;
+    font-size: 14px !important;
 }
 div.stButton > button {
     background: linear-gradient(135deg, #e60000 0%, #b30000 100%) !important;
@@ -59,6 +90,17 @@ div.stButton > button {
     border-radius: 10px !important;
     padding: 14px 28px !important;
     font-weight: 700 !important;
+    letter-spacing: 0.5px;
+    font-size: 14px !important;
+    transition: all 0.2s ease;
+}
+div.stButton > button:hover { 
+    transform: translateY(-1px); 
+    box-shadow: 0 5px 15px rgba(230, 0, 0, 0.5); 
+}
+div[data-testid="stDataFrame"] {
+    border: 1px solid #222733 !important;
+    border-radius: 14px !important;
 }
 .contract-table {
     width: 100%;
@@ -81,20 +123,23 @@ div.stButton > button {
     padding: 12px 8px;
     border-bottom: 1px solid #eee;
     text-align: center;
+    vertical-align: middle;
 }
 .car-info { display: flex; flex-direction: column; align-items: center; }
 .car-image { width: 80px; height: auto; margin-bottom: 5px; }
 .car-plate { font-weight: bold; color: #333; }
+.contract-num { font-weight: 800; font-size: 16px; }
 .status-badge {
     padding: 4px 10px;
     border-radius: 20px;
     font-weight: bold;
     font-size: 11px;
+    text-transform: uppercase;
 }
-.status-paid { background-color: #e6f7ed; color: #28a745; }
-.status-pending { background-color: #fff4e6; color: #fd7e14; }
+.status-paid { background-color: #e6f7ed; color: #28a745; border: 1px solid #28a745; }
+.status-pending { background-color: #fff4e6; color: #fd7e14; border: 1px solid #fd7e14; }
 .km-box { display: flex; flex-direction: column; gap: 2px; align-items: center; }
-.km-value { font-weight: bold; }
+.km-value { font-weight: bold; margin-bottom: 2px; }
 .km-indicator {
     width: 80px;
     padding: 2px 4px;
@@ -124,7 +169,7 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# Noms des tables
+# Noms des tables Supabase
 T_CLIENT = "client"
 T_VEHICULE = "vehicule"
 T_MOUVEMENT = "mouvement"
@@ -163,8 +208,7 @@ def formater_heure_propre(valeur_excel):
 def get_all(table_name):
     try:
         response = supabase.table(table_name).select("*").execute()
-        df = pd.DataFrame(response.data)
-        return df
+        return pd.DataFrame(response.data)
     except Exception as e:
         return pd.DataFrame()
 
@@ -265,89 +309,12 @@ with st.sidebar:
     ], label_visibility="collapsed")
 
     st.markdown("<br><hr>", unsafe_allow_html=True)
-    
-    with st.sidebar.expander("📥 IMPORTS EXCEL AUTOMATIQUES", expanded=False):
-        f_clients = st.file_uploader("Fichier Clients (BBNH)", type=["xlsx"])
-        if f_clients:
-            try:
-                df_cli = pd.read_excel(f_clients, sheet_name='Base de Données', skiprows=1)
-                df_cli = df_cli.loc[:, ~df_cli.columns.str.contains('^Unnamed')]
-                for _, row in df_cli.iterrows():
-                    insert_row(T_CLIENT, row.to_dict())
-                st.success("Données clients synchronisées !")
-                st.cache_data.clear()
-                st.rerun()
-            except Exception as e: st.error(f"Erreur : {e}")
-
-        f_loc2 = st.file_uploader("Fichier Base LOC2", type=["xlsx"])
-        if f_loc2:
-            try:
-                df_stock = pd.read_excel(f_loc2, sheet_name='Stock')
-                df_mouv_raw = pd.read_excel(f_loc2, sheet_name='MOUVEMENTS')
-                df_stock = df_stock.loc[:, ~df_stock.columns.str.contains('^Unnamed')]
-                df_mouv_raw = df_mouv_raw.loc[:, ~df_mouv_raw.columns.str.contains('^Unnamed')]
-                
-                mapping = {}
-                for col in df_mouv_raw.columns:
-                    c_clean = str(col).strip().lower().replace(" ", "_").replace("é", "e").replace("è", "e")
-                    if "matri" in c_clean: mapping[col] = "Matricule"
-                    elif "type" in c_clean or "statut" in c_clean: mapping[col] = "Type_Statut"
-                    elif "deb" in c_clean and "heur" not in c_clean: mapping[col] = "Date_Debut"
-                    elif "fin" in c_clean and "heur" not in c_clean: mapping[col] = "Date_Fin"
-                    elif "heur" in c_clean and "deb" in c_clean: mapping[col] = "Heure_Debut"
-                    elif "heur" in c_clean and "fin" in c_clean: mapping[col] = "Heure_Fin"
-                    elif "client" in c_clean or "nom" in c_clean: mapping[col] = "Client"
-                    elif "prix" in c_clean or "montant" in c_clean or "total" in c_clean: mapping[col] = "Prix"
-                    elif "km_deb" in c_clean or "kilometrage_deb" in c_clean or "km_depart" in c_clean: mapping[col] = "KM_Debut"
-                    elif "km_fin" in c_clean or "kilometrage_ret" in c_clean or "km_retour" in c_clean: mapping[col] = "KM_Fin"
-                    elif "lieu" in c_clean: mapping[col] = "Lieu_Reception"
-                
-                df_mouv_raw = df_mouv_raw.rename(columns=mapping)
-                
-                for _, row in df_stock.iterrows():
-                    insert_row(T_VEHICULE, row.to_dict())
-                
-                for _, row in df_mouv_raw.iterrows():
-                    h_d = formater_heure_propre(row.get('Heure_Debut'))
-                    h_f = formater_heure_propre(row.get('Heure_Fin'))
-                    
-                    try: km_d = int(float(str(row.get('KM_Debut', 0)).strip().replace(' ', '')))
-                    except: km_d = 0
-                    try: km_f = int(float(str(row.get('KM_Fin', 0)).strip().replace(' ', '')))
-                    except: km_f = 0
-                    
-                    p_raw = row.get('Prix', 0)
-                    try: p_clean = str(float(p_raw))
-                    except: p_clean = "0"
-                    
-                    data_mouv = {
-                        "Matricule": str(row.get('Matricule', 'Inconnu')),
-                        "Type_Statut": str(row.get('Type_Statut', 'Location')),
-                        "Date_Debut": str(row.get('Date_Debut', '')),
-                        "Heure_Debut": h_d,
-                        "Date_Fin": str(row.get('Date_Fin', '')),
-                        "Heure_Fin": h_f,
-                        "Client": str(row.get('Client', 'Client')),
-                        "Prix": p_clean,
-                        "Statut_Mouvement": 'En cours',
-                        "Caution": p_clean,
-                        "Reste": p_clean,
-                        "Lieu_Reception": str(row.get('Lieu_Reception', 'Siège')),
-                        "KM_Debut": km_d,
-                        "KM_Fin": km_f
-                    }
-                    insert_row(T_MOUVEMENT, data_mouv)
-                
-                st.success("Données intégrées avec succès !")
-                st.cache_data.clear()
-                st.rerun()
-            except Exception as e: st.error(f"Erreur : {e}")
 
 # ============================================================
 # FORMULAIRES SIDEBAR
 # ============================================================
 if menu_action == "📝 Nouveau Contrat / Réservation":
-    st.sidebar.markdown("###  Éditer une nouvelle fiche")
+    st.sidebar.markdown("### 📝 Éditer une nouvelle fiche")
     nature = st.sidebar.selectbox("Nature : ", ["Contrat Location", "Réservation", "Maintenance / Garage"])
     vehicule = st.sidebar.selectbox("Véhicule : ", liste_vehicules_opt) if liste_vehicules_opt else st.sidebar.text_input("Véhicule : ")
     client_b = st.sidebar.selectbox("Client : ", liste_clients_opt)
@@ -369,12 +336,12 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
 
     nbr_jours = (d2 - d1).days
     if nbr_jours <= 0: nbr_jours = 1
-    st.sidebar.markdown(f"** Durée estimée :** `{nbr_jours} jour(s)`")
+    st.sidebar.markdown(f"**🔢 Durée estimée :** `{nbr_jours} jour(s)`")
 
     prix_unitaire = st.sidebar.number_input("💰 Prix Unitaire / Jour (DT) : ", min_value=0, value=100, step=5)
     total_auto = nbr_jours * prix_unitaire
     montant_total = st.sidebar.number_input("💵 Montant Total Calculé (DT) : ", min_value=0, value=int(total_auto))
-    caution = st.sidebar.number_input("️ Caution Déposée (DT) : ", value=0)
+    caution = st.sidebar.number_input("🛡️ Caution Déposée (DT) : ", value=0)
     reste = montant_total - caution
     st.sidebar.markdown(f"**🔴 Reste à payer :** `{reste} DT`")
     st.sidebar.markdown("---")
@@ -385,7 +352,7 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
     info_note = st.sidebar.text_area("Note complémentaire : ")
     ref = st.sidebar.text_input("Code Contrat unique : ", f"BBNH-{datetime.now().strftime('%d%H%S')}")
 
-    if st.sidebar.button(" ENREGISTRER ON THE PLANNING"):
+    if st.sidebar.button("⚡ ENREGISTRER ON THE PLANNING"):
         nom_f = nom_m if client_b == "-- Entrée manuelle --" else client_b.split(" (CIN: ")[0]
         cin_f = cin_m if client_b == "-- Entrée manuelle --" else client_b.split(" (CIN: ")[1].replace(")", "").strip()
         str_d1, str_d2 = d1.strftime("%Y-%m-%d"), d2.strftime("%Y-%m-%d")
@@ -468,7 +435,6 @@ elif menu_action == "🗑️ Supprimer un Véhicule de la Flotte":
                     st.rerun()
 
 elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
-    # Vérifier si la colonne existe
     if 'Statut_Mouvement' in df_mouvs.columns:
         df_mouv_actifs = df_mouvs[df_mouvs['Statut_Mouvement'] == 'En cours'] if not df_mouvs.empty else pd.DataFrame()
     else:
@@ -522,7 +488,7 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
         if mod_nbr_jours <= 0: mod_nbr_jours = 1
         st.sidebar.markdown(f"**🔢 Durée recalculée :** `{mod_nbr_jours} jour(s)`")
         
-        mod_prix_unitaire = st.sidebar.number_input(" Prix Unitaire / Jour (DT) : ", min_value=0, value=100, key="mod_pu")
+        mod_prix_unitaire = st.sidebar.number_input("💰 Prix Unitaire / Jour (DT) : ", min_value=0, value=100, key="mod_pu")
         mod_total_auto = mod_nbr_jours * mod_prix_unitaire
         mod_prix = st.sidebar.number_input("Prix Total Évalué (DT) : ", value=int(mod_total_auto), key="mod_tot")
         mod_caution = st.sidebar.number_input("Caution (DT) : ", value=0, key="mod_cau")
@@ -535,7 +501,7 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
         mod_km_deb = st.sidebar.number_input("Kilométrage Départ : ", min_value=0, value=int(row_init.get('KM_Debut', 0)))
         mod_note = st.sidebar.text_area("Note Interne : ", value=str(row_init.get('Info_Note', '')))
         
-        if st.sidebar.button(" ENREGISTRER ABSOLUMENT TOUT"):
+        if st.sidebar.button("💾 ENREGISTRER ABSOLUMENT TOUT"):
             str_mod_d1, str_mod_d2 = mod_d1.strftime("%Y-%m-%d"), mod_d2.strftime("%Y-%m-%d")
             str_mod_t1, str_mod_t2 = mod_t1.strftime("%H:%M"), mod_t2.strftime("%H:%M")
             
@@ -585,7 +551,7 @@ st.markdown("<h1>BBNH WORKSPACE AUTOMATION</h1>", unsafe_allow_html=True)
 with st.container(border=True):
     st.markdown("### 🔎 RECHERCHE AVANCÉE : VOITURES DISPONIBLES PAR PÉRIODE")
     c_search1, c_search2, c_search3 = st.columns([2, 2, 1.5])
-    with c_search1: search_date_debut = st.date_input(" Date de Sortie souhaitée : ", datetime.now(), key="adv_search_start")
+    with c_search1: search_date_debut = st.date_input("📅 Date de Sortie souhaitée : ", datetime.now(), key="adv_search_start")
     with c_search2: search_date_fin = st.date_input("📅 Date de Retour prévue : ", datetime.now() + timedelta(days=3), key="adv_search_end")
     with c_search3:
         st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
@@ -599,7 +565,6 @@ with st.container(border=True):
         if not df_mouvs.empty and not df_disponibles.empty:
             matricules_indisponibles = set()
             for _, mv in df_mouvs.iterrows():
-                # Vérifier si la colonne existe
                 statut = mv.get('Statut_Mouvement', 'En cours')
                 if statut == 'En cours':
                     try:
@@ -624,13 +589,13 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 # Onglets
 tab_planning, tab_contrats, tab_logistique, tab_analytics, tab_vidange, tab_crm, tab_admin = st.tabs([
-    "🗓️ CORE PLANNING (365 JOURS)", " LISTE DE CONTRAT", "🔑 BOX RECEPTION RETOURS",
+    "🗓️ CORE PLANNING (365 JOURS)", "📄 LISTE DE CONTRAT", "🔑 BOX RECEPTION RETOURS",
     "📊 SUIVI DES PERFORMANCES", "🔧 SUIVI DES VIDANGES", "👥 COMPTE CONDUCTEURS (CRM)", "⚙️ PANNEAU DE CONFIGURATION"
 ])
 
 # --- TAB 1 : PLANNING ---
 with tab_planning:
-    st.markdown("### ️ Vue Globale & Filtres Intelligents")
+    st.markdown("### 🗓️ Vue Globale & Filtres Intelligents")
     f_col_car, f_col_date_start, f_col_date_target = st.columns([2, 1.5, 1.5])
     with f_col_car:
         options_recherche_voiture = ["-- Toutes les voitures --"] + liste_vehicules_opt
@@ -648,7 +613,7 @@ with tab_planning:
             immat = str(car.get('Matricule', '')).strip()
             if vehicule_recherche != "-- Toutes les voitures --" and immat != vehicule_recherche: continue
             modele = str(car.get('Modèle', car.get('Marque', 'Véhicule')))
-            ligne = {"Flotte BBNH": f" {modele} — [{immat}]"}
+            ligne = {"Flotte BBNH": f"🚘 {modele} — [{immat}]"}
             for col_j in nom_colonnes: ligne[col_j] = "● Disponible"
             build_matrix.append(ligne)
 
@@ -700,9 +665,9 @@ with tab_planning:
             def style_bbnh_theme(val):
                 val_str = str(val)
                 if "● Disponible" in val_str: return "background-color: #ffffff; color: #111827; font-size: 11px; font-weight: 600; text-align: center; border: 1px solid #e5e7eb;"
-                elif "" in val_str: return "background-color: #1d4ed8; color: #ffffff; font-weight: 700; font-size: 10px; border: 2px solid #60a5fa;"
+                elif "🔵" in val_str: return "background-color: #1d4ed8; color: #ffffff; font-weight: 700; font-size: 10px; border: 2px solid #60a5fa;"
                 elif "🛠️" in val_str: return "background-color: #eab308; color: #1e1b4b; font-weight: 700; font-size: 11px;"
-                elif "" in val_str: return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
+                elif "🔴" in val_str: return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
                 elif "🟢" in val_str: return "background-color: #16a34a; color: #ffffff; font-weight: 600; font-size: 11px;"
                 return "background-color: #090b0e; color: #ffffff; font-weight: 700; font-size: 12px; border-right: 3px solid #e60000;"
 
@@ -713,7 +678,7 @@ with tab_planning:
                 cols_ordonnees += nom_colonnes[max(0, idx_target - 2):min(365, idx_target + 12)]
             st.dataframe(df_final_grid[cols_ordonnees].style.map(style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH']), use_container_width=True, height=800)
 
-# --- TAB 2 : LISTE DE CONTRAT ---
+# --- TAB 2 : LISTE DE CONTRAT (CORRIGÉ) ---
 with tab_contrats:
     st.markdown("### 📄 Liste Détaillée des Contrats & Mouvements")
     df_contrats_list = df_mouvs.sort_values(by='id', ascending=False) if 'id' in df_mouvs.columns else df_mouvs
@@ -725,47 +690,90 @@ with tab_contrats:
             <tbody>
         """
         for _, row in df_contrats_list.iterrows():
-            matricule = str(row.get('Matricule', ''))
+            matricule = str(row.get('Matricule', 'N/A'))
             client = str(row.get('Client', ''))
-            tel = "N/A"
-            if not df_clients.empty:
-                df_tel = df_clients[df_clients['Nom'] == client]
-                if not df_tel.empty: tel = str(df_tel.iloc[0].get('Numéro de téléphone', 'N/A'))
             
+            # Recherche du téléphone avec gestion d'erreur
+            tel = "N/A"
+            if client and client != 'nan' and not df_clients.empty:
+                df_tel = df_clients[df_clients['Nom'] == client]
+                if not df_tel.empty:
+                    tel_val = df_tel.iloc[0].get('Numéro de téléphone', 'N/A')
+                    if pd.notna(tel_val) and str(tel_val).strip() != '':
+                        tel = str(tel_val)
+            
+            # Formatage des dates
             try:
                 d_dep = datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d").strftime("%d/%m/%Y")
                 d_ret = datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d").strftime("%d/%m/%Y")
                 jours = (datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d") - datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d")).days
                 if jours <= 0: jours = 1
-            except: d_dep, d_ret, jours = str(row.get('Date_Debut', '')), str(row.get('Date_Fin', '')), "?"
+            except:
+                d_dep = str(row.get('Date_Debut', ''))
+                d_ret = str(row.get('Date_Fin', ''))
+                jours = "?"
             
-            try: montant = f"{float(row.get('Prix', 0)):,.3f}"
-            except: montant = "0.000"
-            try: reste_val = float(row.get('Reste', 0))
-            except: reste_val = 0.0
+            h_dep = str(row.get('Heure_Debut', '00:00'))
+            h_ret = str(row.get('Heure_Fin', '00:00'))
+            
+            # Gestion du prix
+            try:
+                prix_val = row.get('Prix', 0)
+                if pd.isna(prix_val) or str(prix_val).strip() == '':
+                    prix_val = 0
+                montant = f"{float(prix_val):,.3f}"
+            except:
+                montant = "0.000"
+            
+            # Gestion du reste
+            try:
+                reste_val = row.get('Reste', 0)
+                if pd.isna(reste_val) or str(reste_val).strip() == '':
+                    reste_val = 0
+                reste_val = float(reste_val)
+            except:
+                reste_val = 0.0
+            
             reste_style = "status-paid" if reste_val <= 0 else "status-pending"
             reste_text = "PAYÉ" if reste_val <= 0 else f"{reste_val:,.3f} DT"
             
-            try: km_s = int(row.get('KM_Debut', 0))
-            except: km_s = 0
-            try: km_r = int(row.get('KM_Fin', 0))
-            except: km_r = 0
+            # Gestion des KM
+            try:
+                km_s = int(row.get('KM_Debut', 0))
+                if pd.isna(km_s): km_s = 0
+            except:
+                km_s = 0
+            try:
+                km_r = int(row.get('KM_Fin', 0))
+                if pd.isna(km_r): km_r = 0
+            except:
+                km_r = 0
             
             km_ess_s, km_j_s, km_dt_s = f"{km_s // 100} Km/Ess", f"{km_s // 200} Km/j", f"{(km_s % 1000):,.3f} DT"
             km_ess_r, km_j_r, km_dt_r = f"{km_r // 100} Km/Ess", f"{km_r // 200} Km/j", f"{(km_r % 1000):,.3f} DT"
+            
+            num_contrat = str(row.get('id', 'N/A')) if 'id' in row.index else matricule
+            
+            try:
+                caution_val = row.get('Caution', 0)
+                if pd.isna(caution_val) or str(caution_val).strip() == '':
+                    caution_val = 0
+                caution_display = f"{float(caution_val):,.3f}"
+            except:
+                caution_display = "0.000"
             
             html_table += f"""
                 <tr>
                     <td><div class="car-info"><img src="https://img.icons8.com/ios-filled/50/000000/car.png" class="car-image"><div class="car-plate">{matricule}</div><div style="font-size:10px; color:#666;">Location</div></div></td>
                     <td style="color:#007bff; font-weight:bold;">{tel}</td>
-                    <td><div class="contract-num">{row.get('id', 'N/A')}</div><div style="display:flex; justify-content:center; gap:5px; margin-top:5px;"><span>📄</span> <span>🖨️</span></div></td>
+                    <td><div class="contract-num">{num_contrat}</div><div style="display:flex; justify-content:center; gap:5px; margin-top:5px;"><span>📄</span> <span>🖨️</span></div></td>
                     <td><div style="color:red; font-size:20px;">📄</div><div style="background:#ffff00; font-size:9px; padding:2px; font-weight:bold;">Imprimer Extrait</div></td>
-                    <td>{d_dep}<br>{row.get('Heure_Debut', '00:00')}</td>
-                    <td>{d_ret}<br>{row.get('Heure_Fin', '00:00')}</td>
+                    <td>{d_dep}<br>{h_dep}</td>
+                    <td>{d_ret}<br>{h_ret}</td>
                     <td>{jours} j</td>
                     <td style="font-weight:bold;">{montant}</td>
                     <td><span class="status-badge {reste_style}">✔ {reste_text}</span></td>
-                    <td><div style="background:#f1f3f5; padding:5px; border-radius:4px; font-size:10px;"><span style="color:green;">✔</span><br>{float(row.get('Caution', 0)):,.3f} DT</div></td>
+                    <td><div style="background:#f1f3f5; padding:5px; border-radius:4px; font-size:10px;"><span style="color:green;">✔</span><br>{caution_display} DT</div></td>
                     <td><div class="km-box"><div class="km-value" style="color:#28a745;">{km_s} Km</div><div class="km-indicator km-blue">{km_ess_s}</div><div class="km-indicator km-yellow">{km_j_s}</div><div class="km-indicator km-purple">{km_ess_s}</div><div class="km-indicator km-black">{km_dt_s}</div><div style="color:green; font-size:12px;">✔</div></div></td>
                     <td><div class="km-box"><div class="km-value" style="color:#dc3545;">{km_r} Km</div><div class="km-indicator km-green">{km_j_r}</div><div class="km-indicator km-red">{km_j_r}</div><div class="km-indicator km-orange">{km_j_r}</div><div class="km-indicator km-black">{km_dt_r}</div><div style="color:green; font-size:12px;">✔</div></div></td>
                     <td style="font-weight:bold; font-size:11px;">PROCHAIN<br>V: 20000<br>KM</td>
@@ -830,8 +838,12 @@ with tab_analytics:
             df_stats['KM_Debut'] = pd.to_numeric(df_stats['KM_Debut'], errors='coerce').fillna(0).astype(int)
             df_stats['KM_Fin'] = pd.to_numeric(df_stats['KM_Fin'], errors='coerce').fillna(0).astype(int)
         except: pass
-        df_stats['Val_Prix'] = df_stats['Prix'].astype(str).str.replace(' ', '').str.replace('DT', '').str.replace(',', '.')
-        df_stats['Val_Prix'] = pd.to_numeric(df_stats['Val_Prix'], errors='coerce').fillna(0.0)
+        
+        if 'Prix' in df_stats.columns:
+            df_stats['Val_Prix'] = df_stats['Prix'].astype(str).str.replace(' ', '').str.replace('DT', '').str.replace(',', '.')
+            df_stats['Val_Prix'] = pd.to_numeric(df_stats['Val_Prix'], errors='coerce').fillna(0.0)
+        else:
+            df_stats['Val_Prix'] = 0.0
         
         sorties = df_stats[df_stats['Clean_D'] == day_target]
         entrees = df_stats[df_stats['Clean_F'] == day_target]
@@ -846,15 +858,15 @@ with tab_analytics:
         with col_gauche:
             st.markdown("### 🛫 1. VOITURES SORTIES (DÉPARTS)")
             if not sorties.empty:
-                sorties_final = sorties[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Prix', 'KM_Debut']].rename(columns={'Matricule': '🚘 Matricule', 'Client': '👤 Client', 'Date_Debut': '📅 DATE SORTIE', 'Date_Fin': '📅 DATE RETOUR PRÉVUE', 'Prix': ' PRIX (DT)', 'KM_Debut': '🔢 KM SORTIE'})
+                sorties_final = sorties[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Prix', 'KM_Debut']].rename(columns={'Matricule': '🚘 Matricule', 'Client': '👤 Client', 'Date_Debut': '📅 DATE SORTIE', 'Date_Fin': '📅 DATE RETOUR PRÉVUE', 'Prix': '💰 PRIX (DT)', 'KM_Debut': '🔢 KM SORTIE'})
                 st.dataframe(sorties_final, use_container_width=True, hide_index=True)
             else: st.info("Aucun véhicule n'est parti à cette date.")
         with col_droite:
-            st.markdown("###  2. VOITURES RETOURNÉES (RETOURS)")
+            st.markdown("### 🛬 2. VOITURES RETOURNÉES (RETOURS)")
             if not entrees.empty:
                 entrees['KM Roulé'] = entrees.apply(lambda r: (r['KM_Fin'] - r['KM_Debut']) if r['KM_Fin'] > r['KM_Debut'] else 0, axis=1)
                 entrees['Heure_Retour_Propre'] = entrees['Heure_Fin'].apply(formater_heure_propre)
-                entrees_final = entrees[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Heure_Retour_Propre', 'Lieu_Reception', 'Prix', 'KM_Debut', 'KM_Fin', 'KM Roulé']].rename(columns={'Matricule': ' Matricule', 'Client': '👤 Client', 'Date_Debut': '📅 DATE SORTIE', 'Date_Fin': '📅 DATE RETOUR', 'Heure_Retour_Propre': '🕒 HEURE RETOUR', 'Lieu_Reception': '📍 LIEU DE RETOUR', 'Prix': '💰 PRIX TOTAL (DT)', 'KM_Debut': ' KM SORTIE', 'KM_Fin': ' KM RETOUR', 'KM Roulé': '🔥 KM ROULÉ'})
+                entrees_final = entrees[['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Heure_Retour_Propre', 'Lieu_Reception', 'Prix', 'KM_Debut', 'KM_Fin', 'KM Roulé']].rename(columns={'Matricule': '🚘 Matricule', 'Client': '👤 Client', 'Date_Debut': '📅 DATE SORTIE', 'Date_Fin': '📅 DATE RETOUR', 'Heure_Retour_Propre': '🕒 HEURE RETOUR', 'Lieu_Reception': '📍 LIEU DE RETOUR', 'Prix': '💰 PRIX TOTAL (DT)', 'KM_Debut': '🔢 KM SORTIE', 'KM_Fin': '🔢 KM RETOUR', 'KM Roulé': '🔥 KM ROULÉ'})
                 st.dataframe(entrees_final, use_container_width=True, hide_index=True)
             else: st.info("Aucun retour physique enregistré à cette date.")
 
@@ -929,9 +941,9 @@ with tab_crm:
                 for idx, cli in clients_trouves.iterrows():
                     cin_client_actuel = str(cli.get('CIN', '')).strip()
                     unique_suffix = f"{idx}_{cin_client_actuel}"
-                    with st.expander(f" {str(cli.get('Nom', '')).upper()} {cli.get('Prénom', '')} (CIN: {cin_client_actuel})", expanded=True):
+                    with st.expander(f"👤 {str(cli.get('Nom', '')).upper()} {cli.get('Prénom', '')} (CIN: {cin_client_actuel})", expanded=True):
                         st.write(f"**📞 Téléphone :** `{cli.get('Numéro de téléphone', 'N/A')}` | **🚗 N° Permis :** `{cli.get('N° Permis', 'N/A')}`")
-                        st.write(f" **Délivrance CIN :** `{cli.get('Date Délivrance CIN', 'N/A')}` | 📅 **Délivrance Permis :** `{cli.get('Date Délivrance Permis', 'N/A')}`")
+                        st.write(f"📅 **Délivrance CIN :** `{cli.get('Date Délivrance CIN', 'N/A')}` | 📅 **Délivrance Permis :** `{cli.get('Date Délivrance Permis', 'N/A')}`")
                         col_img1, col_img2 = st.columns(2)
                         with col_img1:
                             if cli.get('Image CIN'):
