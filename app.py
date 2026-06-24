@@ -128,7 +128,7 @@ div[data-testid="stDataFrame"] {
 .car-info { display: flex; flex-direction: column; align-items: center; }
 .car-image { width: 80px; height: auto; margin-bottom: 5px; }
 .car-plate { font-weight: bold; color: #333; }
-.contract-num { font-weight: 800; font-size: 16px; }
+.contract-num { font-weight: 800; font-size: 16px; color: #e60000; }
 .status-badge {
     padding: 4px 10px;
     border-radius: 20px;
@@ -138,7 +138,12 @@ div[data-testid="stDataFrame"] {
 }
 .status-paid { background-color: #e6f7ed; color: #28a745; border: 1px solid #28a745; }
 .status-pending { background-color: #fff4e6; color: #fd7e14; border: 1px solid #fd7e14; }
-.km-box { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.km-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+}
 .km-value { font-weight: bold; margin-bottom: 2px; }
 .km-indicator {
     width: 80px;
@@ -678,29 +683,53 @@ with tab_planning:
                 cols_ordonnees += nom_colonnes[max(0, idx_target - 2):min(365, idx_target + 12)]
             st.dataframe(df_final_grid[cols_ordonnees].style.map(style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH']), use_container_width=True, height=800)
 
-# --- TAB 2 : LISTE DE CONTRAT (CORRIGÉ) ---
+# ============================================================
+# TAB 2 : LISTE DE CONTRAT (VERSION CORRIGÉE)
+# ============================================================
 with tab_contrats:
     st.markdown("### 📄 Liste Détaillée des Contrats & Mouvements")
-    df_contrats_list = df_mouvs.sort_values(by='id', ascending=False) if 'id' in df_mouvs.columns else df_mouvs
+    
+    # Trier par ID décroissant
+    if 'id' in df_mouvs.columns:
+        df_contrats_list = df_mouvs.sort_values(by='id', ascending=False)
+    else:
+        df_contrats_list = df_mouvs
     
     if not df_contrats_list.empty:
+        # Construction du tableau HTML
         html_table = """
         <table class="contract-table">
-            <thead><tr><th>Voiture</th><th>Tél</th><th>N° Contrat</th><th>Facture</th><th>D.Départ</th><th>D.Retour</th><th>Jours</th><th>Montant TTC(DT)</th><th>Reste(DT)</th><th>Extras</th><th>KM Sortie</th><th>KM Retour</th><th>KM</th></tr></thead>
+            <thead>
+                <tr>
+                    <th>🚗 Matricule</th>
+                    <th>📞 N° Tel</th>
+                    <th>📋 N° Contrat</th>
+                    <th>📅 Date Départ</th>
+                    <th>📅 Date Retour</th>
+                    <th>📆 Jours</th>
+                    <th>💰 Montant TTC (DT)</th>
+                    <th>💸 Reste (DT)</th>
+                    <th>🎁 Extras</th>
+                    <th>🛣️ KM Sortie</th>
+                    <th>🏁 KM Retour</th>
+                </tr>
+            </thead>
             <tbody>
         """
+        
         for _, row in df_contrats_list.iterrows():
             try:
-                matricule = str(row.get('Matricule', 'N/A'))
-                client = str(row.get('Client', '')).strip()
+                # 1. MATRICULE
+                matricule = str(row.get('Matricule', 'N/A')).strip()
                 
-                # 🔧 CORRECTION 1 : Recherche du téléphone avec tolérance
+                # 2. NUMÉRO DE TÉLÉPHONE (recherche avec tolérance)
                 tel = "N/A"
+                client = str(row.get('Client', '')).strip()
                 if client and client != 'nan' and client != '' and not df_clients.empty:
                     # Recherche exacte d'abord
                     df_tel = df_clients[df_clients['Nom'] == client]
                     if df_tel.empty:
-                        # Recherche partielle si exacte échoue
+                        # Recherche partielle si échec
                         df_tel = df_clients[df_clients['Nom'].str.contains(client, case=False, na=False)]
                     
                     if not df_tel.empty:
@@ -708,24 +737,37 @@ with tab_contrats:
                         if pd.notna(tel_val) and str(tel_val).strip() != '' and str(tel_val).lower() != 'nan':
                             tel = str(tel_val)
                 
-                # Formatage des dates
+                # 3. N° CONTRAT (formaté #0001)
+                if 'id' in row.index and pd.notna(row.get('id')):
+                    try:
+                        num_contrat = f"#{int(row.get('id', 0)):04d}"
+                    except:
+                        num_contrat = matricule
+                else:
+                    num_contrat = matricule
+                
+                # 4. DATE DÉPART
                 try:
                     d_dep = datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d").strftime("%d/%m/%Y")
+                except:
+                    d_dep = str(row.get('Date_Debut', 'N/A'))
+                
+                # 5. DATE RETOUR
+                try:
                     d_ret = datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d").strftime("%d/%m/%Y")
-                    jours = (datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d") - datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d")).days
+                except:
+                    d_ret = str(row.get('Date_Fin', 'N/A'))
+                
+                # 6. NOMBRE DE JOURS
+                try:
+                    d_dep_dt = datetime.strptime(str(row.get('Date_Debut', '')), "%Y-%m-%d")
+                    d_ret_dt = datetime.strptime(str(row.get('Date_Fin', '')), "%Y-%m-%d")
+                    jours = (d_ret_dt - d_dep_dt).days
                     if jours <= 0: jours = 1
                 except:
-                    d_dep = str(row.get('Date_Debut', ''))
-                    d_ret = str(row.get('Date_Fin', ''))
                     jours = "?"
                 
-                h_dep = str(row.get('Heure_Debut', '00:00'))
-                h_ret = str(row.get('Heure_Fin', '00:00'))
-                
-                # 🔧 CORRECTION 2 : N° Contrat formaté
-                num_contrat = f"#{int(row.get('id', 0)):04d}" if 'id' in row.index and pd.notna(row.get('id')) else matricule
-                
-                # Gestion du prix
+                # 7. MONTANT TTC
                 try:
                     prix_val = row.get('Prix', 0)
                     if pd.isna(prix_val) or str(prix_val).strip() == '' or str(prix_val).lower() == 'nan':
@@ -734,7 +776,7 @@ with tab_contrats:
                 except:
                     montant = "0.000"
                 
-                # Gestion du reste
+                # 8. RESTE
                 try:
                     reste_val = row.get('Reste', 0)
                     if pd.isna(reste_val) or str(reste_val).strip() == '' or str(reste_val).lower() == 'nan':
@@ -744,23 +786,9 @@ with tab_contrats:
                     reste_val = 0.0
                 
                 reste_style = "status-paid" if reste_val <= 0 else "status-pending"
-                reste_text = "PAYÉ" if reste_val <= 0 else f"{reste_val:,.3f} DT"
+                reste_text = "PAYÉ" if reste_val <= 0 else f"{reste_val:,.3f}"
                 
-                # Gestion des KM
-                try:
-                    km_s = int(row.get('KM_Debut', 0))
-                    if pd.isna(km_s): km_s = 0
-                except:
-                    km_s = 0
-                try:
-                    km_r = int(row.get('KM_Fin', 0))
-                    if pd.isna(km_r): km_r = 0
-                except:
-                    km_r = 0
-                
-                km_ess_s, km_j_s, km_dt_s = f"{km_s // 100} Km/Ess", f"{km_s // 200} Km/j", f"{(km_s % 1000):,.3f} DT"
-                km_ess_r, km_j_r, km_dt_r = f"{km_r // 100} Km/Ess", f"{km_r // 200} Km/j", f"{(km_r % 1000):,.3f} DT"
-                
+                # 9. EXTRAS (Caution)
                 try:
                     caution_val = row.get('Caution', 0)
                     if pd.isna(caution_val) or str(caution_val).strip() == '' or str(caution_val).lower() == 'nan':
@@ -769,29 +797,72 @@ with tab_contrats:
                 except:
                     caution_display = "0.000"
                 
+                # 10. KM SORTIE
+                try:
+                    km_s = int(row.get('KM_Debut', 0))
+                    if pd.isna(km_s): km_s = 0
+                except:
+                    km_s = 0
+                
+                # 11. KM RETOUR
+                try:
+                    km_r = int(row.get('KM_Fin', 0))
+                    if pd.isna(km_r): km_r = 0
+                except:
+                    km_r = 0
+                
+                # Construction de la ligne HTML
                 html_table += f"""
                     <tr>
-                        <td><div class="car-info"><img src="https://img.icons8.com/ios-filled/50/000000/car.png" class="car-image"><div class="car-plate">{matricule}</div><div style="font-size:10px; color:#666;">Location</div></div></td>
-                        <td style="color:#007bff; font-weight:bold;">{tel}</td>
-                        <td><div class="contract-num">{num_contrat}</div><div style="display:flex; justify-content:center; gap:5px; margin-top:5px;"><span>📄</span> <span>🖨️</span></div></td>
-                        <td><div style="color:red; font-size:20px;">📄</div><div style="background:#ffff00; font-size:9px; padding:2px; font-weight:bold;">Imprimer Extrait</div></td>
-                        <td>{d_dep}<br>{h_dep}</td>
-                        <td>{d_ret}<br>{h_ret}</td>
-                        <td>{jours} j</td>
-                        <td style="font-weight:bold;">{montant}</td>
+                        <td>
+                            <div class="car-info">
+                                <img src="https://img.icons8.com/ios-filled/50/000000/car.png" class="car-image">
+                                <div class="car-plate">{matricule}</div>
+                                <div style="font-size:10px; color:#666;">Location</div>
+                            </div>
+                        </td>
+                        <td style="color:#007bff; font-weight:bold; font-size:14px;">{tel}</td>
+                        <td>
+                            <div class="contract-num">{num_contrat}</div>
+                            <div style="display:flex; justify-content:center; gap:5px; margin-top:5px;">
+                                <span>📄</span> <span>🖨️</span>
+                            </div>
+                        </td>
+                        <td style="font-weight:600;">{d_dep}</td>
+                        <td style="font-weight:600;">{d_ret}</td>
+                        <td style="font-weight:bold; font-size:16px; color:#e60000;">{jours} j</td>
+                        <td style="font-weight:bold; font-size:14px;">{montant}</td>
                         <td><span class="status-badge {reste_style}">✔ {reste_text}</span></td>
-                        <td><div style="background:#f1f3f5; padding:5px; border-radius:4px; font-size:10px;"><span style="color:green;">✔</span><br>{caution_display} DT</div></td>
-                        <td><div class="km-box"><div class="km-value" style="color:#28a745;">{km_s} Km</div><div class="km-indicator km-blue">{km_ess_s}</div><div class="km-indicator km-yellow">{km_j_s}</div><div class="km-indicator km-purple">{km_ess_s}</div><div class="km-indicator km-black">{km_dt_s}</div><div style="color:green; font-size:12px;">✔</div></div></td>
-                        <td><div class="km-box"><div class="km-value" style="color:#dc3545;">{km_r} Km</div><div class="km-indicator km-green">{km_j_r}</div><div class="km-indicator km-red">{km_j_r}</div><div class="km-indicator km-orange">{km_j_r}</div><div class="km-indicator km-black">{km_dt_r}</div><div style="color:green; font-size:12px;">✔</div></div></td>
-                        <td style="font-weight:bold; font-size:11px;">PROCHAIN<br>V: 20000<br>KM</td>
+                        <td>
+                            <div style="background:#f1f3f5; padding:8px; border-radius:4px; font-size:11px;">
+                                <span style="color:green;">✔</span><br>
+                                <strong>{caution_display} DT</strong>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="km-box">
+                                <div class="km-value" style="color:#28a745; font-size:16px;">{km_s} Km</div>
+                                <div class="km-indicator km-blue">{km_s // 100} Km/Ess</div>
+                                <div class="km-indicator km-yellow">{km_s // 200} Km/j</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="km-box">
+                                <div class="km-value" style="color:#dc3545; font-size:16px;">{km_r} Km</div>
+                                <div class="km-indicator km-green">{km_r // 200} Km/j</div>
+                                <div class="km-indicator km-red">{km_r // 100} Km/Ess</div>
+                            </div>
+                        </td>
                     </tr>
                 """
             except Exception as e:
+                # Si une ligne cause une erreur, on la saute
                 continue
         
         html_table += "</tbody></table>"
         st.markdown(html_table, unsafe_allow_html=True)
-    else: st.info("Aucun contrat ou mouvement enregistré.")
+    else:
+        st.info("Aucun contrat ou mouvement enregistré.")
 
 # --- TAB 3 : RECEPTION LOGISTIQUE ---
 with tab_logistique:
