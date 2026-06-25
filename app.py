@@ -6,7 +6,7 @@ import base64
 from datetime import datetime, timedelta, time
 import traceback
 
-# --- Compatibilité Streamlit (rerun) ---
+# --- Compatibilité Streamlit ---
 if hasattr(st, "rerun"):
     rerun = st.rerun
 elif hasattr(st, "experimental_rerun"):
@@ -14,22 +14,21 @@ elif hasattr(st, "experimental_rerun"):
 else:
     def rerun(): pass
 
-# --- Compatibilité pandas ---
 def style_apply(df_style, func, **kwargs):
     try:
         return df_style.map(func, **kwargs)
     except AttributeError:
         return df_style.applymap(func, **kwargs)
 
-# --- CONFIGURATION DE LA PAGE ---
+# --- CONFIGURATION PAGE ---
 st.set_page_config(
-    page_title="BBNH OS — Gestion Premium",
+    page_title="BBNH OS — Planning 365 Jours",
     layout="wide",
-    page_icon="️",
+    page_icon="🏎️",
     initial_sidebar_state="expanded"
 )
 
-# --- STYLE CSS ---
+# --- CSS ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
@@ -49,36 +48,6 @@ section[data-testid="stSidebar"] {
     background: #ffffff; padding: 16px; border-radius: 16px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
     margin-bottom: 25px; display: flex; justify-content: center; align-items: center;
-}
-.stTabs [data-baseweb="tab-list"] {
-    gap: 8px; background-color: #161920; padding: 6px;
-    border-radius: 14px; border: 1px solid #222733; margin-bottom: 25px;
-}
-.stTabs [data-baseweb="tab"] {
-    padding: 10px 20px; border-radius: 10px; font-weight: 600;
-    color: #9ca3af; transition: all 0.2s ease; border: none !important;
-}
-.stTabs [data-baseweb="tab"]:hover { background-color: #222733; color: #ffffff; }
-.stTabs [aria-selected="true"] {
-    background-color: #e60000 !important; color: #ffffff !important;
-    box-shadow: 0 4px 15px rgba(230, 0, 0, 0.4);
-}
-h1 { font-weight: 800 !important; letter-spacing: -1px !important; color: #ffffff !important; }
-h3 { color: #f3f4f6; font-weight: 700 !important; letter-spacing: -0.5px; }
-div[data-testid="stForm"] {
-    background: rgba(22, 25, 32, 0.8) !important;
-    border: 1px solid #2a3142 !important; padding: 25px !important;
-    border-radius: 16px !important;
-}
-div.stButton > button {
-    background: linear-gradient(135deg, #e60000 0%, #b30000 100%) !important;
-    color: white !important; border: none !important; border-radius: 10px !important;
-    padding: 14px 28px !important; font-weight: 700 !important;
-    font-size: 14px !important; transition: all 0.2s ease;
-}
-div.stButton > button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 5px 15px rgba(230, 0, 0, 0.5);
 }
 .contract-table {
     width: 100%; border-collapse: collapse; background-color: #ffffff;
@@ -106,7 +75,7 @@ div.stButton > button:hover {
 """, unsafe_allow_html=True)
 
 # ============================================================
-# CONFIGURATION SUPABASE
+# SUPABASE
 # ============================================================
 @st.cache_resource
 def init_supabase():
@@ -124,17 +93,8 @@ supabase = init_supabase()
 
 if supabase is None:
     st.error("🔴 **Connexion Supabase impossible**")
-    st.markdown("""
-    ### 📋 Configuration requise
-    Créez un fichier `.streamlit/secrets.toml` avec :
-    ```toml
-    SUPABASE_URL = "https://VOTRE_PROJET.supabase.co"
-    SUPABASE_KEY = "votre_cle_anon_ou_service_role"
-    ```
-    """)
     st.stop()
 
-# Noms des tables
 T_CLIENT = "client"
 T_VEHICULE = "vehicule"
 T_MOUVEMENT = "mouvement"
@@ -142,10 +102,9 @@ T_VIDANGE = "vidange"
 T_CONTRAT = "carbbnh"
 
 # ============================================================
-# ⚡ SYSTÈME DE CACHE SESSION STATE
+# CACHE SESSION STATE
 # ============================================================
 def load_all_data(force=False):
-    """Charge TOUTES les données en une seule fois"""
     if not force and st.session_state.get('data_loaded', False):
         return
     
@@ -167,14 +126,11 @@ def load_all_data(force=False):
         st.error(f"Erreur chargement: {e}")
 
 def refresh_data():
-    """Force le rechargement des données"""
     st.session_state['data_loaded'] = False
     load_all_data(force=True)
 
-# Chargement initial
 load_all_data()
 
-# Accès rapide aux dataframes
 df_voitures = st.session_state.get('df_voitures', pd.DataFrame())
 df_clients = st.session_state.get('df_clients', pd.DataFrame())
 df_mouvs = st.session_state.get('df_mouvs', pd.DataFrame())
@@ -301,7 +257,7 @@ def upsert_vidange(matricule, marque, km_recent=0):
         return False
 
 # ============================================================
-# LISTES POUR SELECTBOX
+# LISTES
 # ============================================================
 @st.cache_data(show_spinner=False)
 def build_liste_clients(_df_clients):
@@ -363,10 +319,10 @@ with st.sidebar:
         rerun()
 
 # ============================================================
-# FORMULAIRES SIDEBAR
+# FORMULAIRES SIDEBAR (inchangés)
 # ============================================================
 if menu_action == "📝 Nouveau Contrat / Réservation":
-    st.sidebar.markdown("###  Éditer une nouvelle fiche")
+    st.sidebar.markdown("📝 Éditer une nouvelle fiche")
     nature = st.sidebar.selectbox("Nature : ", ["Contrat Location", "Réservation", "Maintenance / Garage"])
     vehicule = st.sidebar.selectbox("Véhicule : ", liste_vehicules_opt) if liste_vehicules_opt else st.sidebar.text_input("Véhicule : ")
     client_b = st.sidebar.selectbox("Client : ", liste_clients_opt)
@@ -447,7 +403,7 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
             else:
                 st.error("❌ Échec de création")
         except Exception as e:
-            st.error(f" Erreur : {e}")
+            st.error(f"❌ Erreur : {e}")
             traceback.print_exc()
 
 elif menu_action == "🚗 Ajouter un Véhicule à la Flotte":
@@ -550,7 +506,7 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
         mod_km_deb = st.sidebar.number_input("KM Départ : ", min_value=0, value=safe_int(row_init.get('KM_Debut')))
         mod_note = st.sidebar.text_area("Note : ", value=safe_str(row_init.get('Info_Note')))
 
-        if st.sidebar.button(" ENREGISTRER LES MODIFICATIONS"):
+        if st.sidebar.button("💾 ENREGISTRER LES MODIFICATIONS"):
             try:
                 str_mod_d1, str_mod_d2 = mod_d1.strftime("%Y-%m-%d"), mod_d2.strftime("%Y-%m-%d")
                 str_mod_t1, str_mod_t2 = mod_t1.strftime("%H:%M"), mod_t2.strftime("%H:%M")
@@ -606,7 +562,7 @@ elif menu_action == "❌ Supprimer une opération":
 # ============================================================
 # ESPACE CENTRAL
 # ============================================================
-st.markdown("<h1>BBNH WORKSPACE AUTOMATION</h1>", unsafe_allow_html=True)
+st.markdown("<h1>BBNH WORKSPACE AUTOMATION - PLANNING ANNUEL 365 JOURS</h1>", unsafe_allow_html=True)
 
 # Recherche avancée
 with st.container(border=True):
@@ -640,7 +596,7 @@ with st.container(border=True):
             st.markdown(f"##### 🚗 {len(df_disponibles)} Véhicule(s) disponible(s) du `{str_s_start}` au `{str_s_end}` :")
             cols_aff = [c for c in ['Matricule', 'Marque', 'Modèle', 'Année'] if c in df_disponibles.columns]
             df_disp_aff = df_disponibles[cols_aff].rename(columns={
-                'Matricule': ' Matricule', 'Marque': 'Marque', 'Modèle': 'Modèle', 'Année': 'Année'
+                'Matricule': '🚘 Matricule', 'Marque': 'Marque', 'Modèle': 'Modèle', 'Année': 'Année'
             })
             st.dataframe(df_disp_aff, use_container_width=True, hide_index=True)
         else:
@@ -651,28 +607,26 @@ st.markdown("<br>", unsafe_allow_html=True)
 # Onglets
 tab_planning, tab_contrats, tab_logistique, tab_analytics, tab_vidange, tab_crm, tab_admin = st.tabs([
     "🗓️ PLANNING", "📄 CONTRATS", "🔑 RETOURS",
-    " PERFORMANCES", "🔧 VIDANGES", "👥 CRM", "⚙️ ADMIN"
+    "📊 PERFORMANCES", "🔧 VIDANGES", "👥 CRM", "⚙️ ADMIN"
 ])
 
 # ============================================================
-# --- TAB 1 : PLANNING (365 JOURS AVEC CODE COULEUR) ---
+# TAB 1 : PLANNING 365 JOURS AVEC CODE COULEUR
 # ============================================================
 with tab_planning:
-    st.markdown("### 🗓️ PLANNING ANNUEL BBNH")
+    st.markdown("### 🗓️ PLANNING ANNUEL - 365 JOURS")
     
     # Filtres
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2 = st.columns([2, 1])
     with col1:
-        date_base = st.date_input("📅 Date de début :", datetime(2026, 1, 1), key="planning_date")
+        date_base = st.date_input("📅 Date de début de l'année :", datetime(2026, 1, 1), key="planning_date")
     with col2:
         vehicule_recherche = st.selectbox(
             "🚘 Filtrer véhicule :", 
             ["-- Toutes --"] + liste_vehicules_opt
         )
-    with col3:
-        recherche_date = st.date_input("🎯 Focus date :", datetime.now())
     
-    # ⚡ 365 JOURS COMPLETS
+    # Création des 365 colonnes de dates
     array_jours = [date_base + timedelta(days=i) for i in range(365)]
     nom_colonnes = [j.strftime("%d/%m") for j in array_jours]
     
@@ -695,10 +649,8 @@ with tab_planning:
             modele = safe_str(car.get('Modèle', car.get('Marque', 'Véhicule')))
             marque = safe_str(car.get('Marque', ''))
             
-            # Format: MARQUE — [MATRICULE]
             ligne = {"Flotte BBNH": f"{marque} — [{immat}]"}
             
-            # Initialisation: toutes les cases "● Disponible"
             for col_j in nom_colonnes:
                 ligne[col_j] = "● Disponible"
             
@@ -718,51 +670,42 @@ with tab_planning:
                 client_v = safe_str(mv.get('Client', 'Inconnu'))
                 type_statut = safe_str(mv.get('Type_Statut', '')).lower()
                 
-                # Récupération des heures
                 h_debut = formater_heure_propre(mv.get('Heure_Debut'))
                 h_fin = formater_heure_propre(mv.get('Heure_Fin'))
                 
-                # Dates
                 d_debut_mv = parse_date(mv.get('Date_Debut'))
                 d_fin_mv = parse_date(mv.get('Date_Fin'))
                 
                 if not (d_debut_mv and d_fin_mv):
                     continue
                 
-                # Calcul de la durée
-                duree_jours = (d_fin_mv - d_debut_mv).days + 1
-                
-                # ============================================================
-                # CODE COULEUR EXACT DE L'IMAGE
-                # ============================================================
-                # Vert clair (#86efac) : Réservations [10:00→10:00], [11:00→11:00], etc.
-                # Vert foncé (#22c55e) : Locations longues [18:00→18:00] sur plusieurs jours
-                # Rouge (#ef4444) : Locations urgentes/courtes [09:00→12:00]
-                # Orange/jaune (#fef3c7) : Garage/Maintenance
-                
+                # Déterminer le type et la couleur selon l'heure
                 if "garage" in type_statut or "maintenance" in type_statut:
-                    # Garage: fond orange/jaune
                     format_text = f"🛠️ GARAGE"
                     color_type = "garage"
                 elif "réservation" in type_statut:
-                    # Réservation: vert clair
                     format_text = f"[{h_debut}→{h_fin}] {client_v}"
                     color_type = "reservation"
                 else:
-                    # Location normale
-                    if duree_jours == 1:
-                        # Location d'un jour : vert clair (comme [10:00→10:00])
+                    # Location - couleur basée sur l'heure de début
+                    heure_debut_int = int(h_debut.split(':')[0]) if ':' in h_debut else 0
+                    
+                    if heure_debut_int < 12:
+                        # Matin (avant midi): Vert clair - Réservation
                         format_text = f"[{h_debut}→{h_fin}] {client_v}"
-                        color_type = "location_courte"
+                        color_type = "matin_clair"
+                    elif heure_debut_int < 17:
+                        # Après-midi (12h-17h): Rouge - Urgent
+                        format_text = f"[{h_debut}→{h_fin}] {client_v}"
+                        color_type = "apres_midi_rouge"
                     else:
-                        # Location multi-jours : vert foncé (comme [18:00→18:00])
+                        # Soir (après 17h): Vert foncé - Location
                         format_text = f"[{h_debut}→{h_fin}] {client_v}"
-                        color_type = "location_longue"
+                        color_type = "soir_fonce"
                 
                 if m_v not in suivi_jours:
                     suivi_jours[m_v] = {}
                 
-                # Marquer les jours concernés
                 for j in array_jours:
                     if d_debut_mv <= j <= d_fin_mv:
                         key_day = j.strftime("%d/%m")
@@ -781,100 +724,102 @@ with tab_planning:
                 if mat_extracted in suivi_jours:
                     for key_day, data in suivi_jours[mat_extracted].items():
                         if key_day in df_final_grid.columns and data["texte"]:
-                            # Stocker avec le type de couleur
-                            df_final_grid.at[idx, key_day] = f"{data['texte']}|{data['type']}"
+                            df_final_grid.at[idx, key_day] = data["texte"]
         
         # ============================================================
         # FONCTION DE STYLE - CODE COULEUR EXACT
         # ============================================================
-        def style_planning_bbnh(val):
+        def style_planning_365(val):
             if pd.isna(val):
-                return "background-color: #ffffff; color: #000000; font-size: 11px;"
+                return "background-color: #ffffff; color: #000000; font-size: 10px;"
             
             val_str = str(val)
             
-            # Extraire le type de couleur si présent
-            color_type = ""
-            texte_affichage = val_str
-            if "|" in val_str:
-                parts = val_str.split("|")
-                texte_affichage = parts[0]
-                color_type = parts[1] if len(parts) > 1 else ""
-            
-            # Disponible (point noir) - fond blanc
+            # Disponible - Blanc
             if "● Disponible" in val_str:
                 return """
                     background-color: #ffffff; 
                     color: #000000; 
-                    font-size: 11px; 
+                    font-size: 10px; 
                     font-weight: 500;
                     text-align: left;
-                    padding: 8px;
+                    padding: 4px;
                 """
             
-            # Garage/Maintenance - orange/jaune
-            elif color_type == "garage" or "🛠️" in val_str:
+            # Garage - Orange/Jaune
+            elif "🛠️" in val_str or "GARAGE" in val_str:
                 return """
                     background-color: #fef3c7; 
                     color: #92400e; 
                     font-weight: 600; 
-                    font-size: 11px;
+                    font-size: 10px;
                     text-align: left;
-                    padding: 8px;
+                    padding: 4px;
                 """
             
-            # Réservation - vert clair (#86efac)
-            elif color_type == "reservation":
+            # Réservation - Vert clair (#86efac comme dans l'image)
+            elif color_type == "reservation" or color_type == "matin_clair":
                 return """
                     background-color: #86efac; 
                     color: #166534; 
                     font-weight: 600; 
-                    font-size: 11px;
+                    font-size: 10px;
                     text-align: left;
-                    padding: 8px;
+                    padding: 4px;
                 """
             
-            # Location courte (1 jour) - vert clair (#86efac)
-            elif color_type == "location_courte":
+            # Location matin - Vert clair
+            elif color_type == "matin_clair":
                 return """
                     background-color: #86efac; 
                     color: #166534; 
                     font-weight: 600; 
-                    font-size: 11px;
+                    font-size: 10px;
                     text-align: left;
-                    padding: 8px;
+                    padding: 4px;
                 """
             
-            # Location longue (multi-jours) - vert foncé (#22c55e)
-            elif color_type == "location_longue":
+            # Location après-midi - Rouge (urgent)
+            elif color_type == "apres_midi_rouge":
+                return """
+                    background-color: #ef4444; 
+                    color: #ffffff; 
+                    font-weight: 700; 
+                    font-size: 10px;
+                    text-align: left;
+                    padding: 4px;
+                """
+            
+            # Location soir - Vert foncé (#22c55e comme dans l'image)
+            elif color_type == "soir_fonce":
                 return """
                     background-color: #22c55e; 
                     color: #ffffff; 
                     font-weight: 700; 
-                    font-size: 11px;
+                    font-size: 10px;
                     text-align: left;
-                    padding: 8px;
+                    padding: 4px;
                 """
             
-            # Défaut
-            return "background-color: #ffffff; color: #000000; font-size: 11px;"
+            # Défaut - Blanc
+            return "background-color: #ffffff; color: #000000; font-size: 10px;"
         
         # Application du style
         cols_ordonnees = ['Flotte BBNH'] + nom_colonnes
-        styled_df = df_final_grid[cols_ordonnees].style.applymap(style_planning_bbnh)
+        styled_df = df_final_grid[cols_ordonnees].style.applymap(style_planning_365)
         
         # Affichage avec scroll
         st.dataframe(
             styled_df,
             use_container_width=True,
-            height=700,
+            height=600,
             hide_index=True
         )
         
         # Légende
         st.markdown("""
         <div style='margin-top: 20px; padding: 15px; background-color: #1f2937; border-radius: 8px;'>
-            <h4 style='color: white; margin-bottom: 10px;'>📊 Légende :</h4>
+            <h4 style='color: white; margin-bottom: 10px;'>📊 Légende des Couleurs :</h4>
             <div style='display: flex; gap: 20px; flex-wrap: wrap;'>
                 <div style='display: flex; align-items: center; gap: 8px;'>
                     <div style='width: 20px; height: 20px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 4px;'></div>
@@ -882,19 +827,19 @@ with tab_planning:
                 </div>
                 <div style='display: flex; align-items: center; gap: 8px;'>
                     <div style='width: 20px; height: 20px; background-color: #86efac; border: 1px solid #22c55e; border-radius: 4px;'></div>
-                    <span style='color: white; font-size: 13px;'>Réservation / Location 1 jour</span>
+                    <span style='color: white; font-size: 13px;'>Réservation / Matin (avant 12h)</span>
+                </div>
+                <div style='display: flex; align-items: center; gap: 8px;'>
+                    <div style='width: 20px; height: 20px; background-color: #ef4444; border: 1px solid #dc2626; border-radius: 4px;'></div>
+                    <span style='color: white; font-size: 13px;'>Location Après-midi (12h-17h) - Urgent</span>
                 </div>
                 <div style='display: flex; align-items: center; gap: 8px;'>
                     <div style='width: 20px; height: 20px; background-color: #22c55e; border: 1px solid #16a34a; border-radius: 4px;'></div>
-                    <span style='color: white; font-size: 13px;'>Location multi-jours</span>
+                    <span style='color: white; font-size: 13px;'>Location Soir (après 17h)</span>
                 </div>
                 <div style='display: flex; align-items: center; gap: 8px;'>
                     <div style='width: 20px; height: 20px; background-color: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px;'></div>
                     <span style='color: white; font-size: 13px;'>🛠️ Garage / Maintenance</span>
-                </div>
-                <div style='display: flex; align-items: center; gap: 8px;'>
-                    <div style='width: 20px; height: 20px; background-color: #ef4444; border: 1px solid #dc2626; border-radius: 4px;'></div>
-                    <span style='color: white; font-size: 13px;'>Location urgente</span>
                 </div>
             </div>
         </div>
@@ -903,7 +848,7 @@ with tab_planning:
         st.info("Aucun véhicule disponible pour afficher le planning.")
 
 # ============================================================
-# --- TAB 2 : CONTRATS ---
+# TAB 2 : CONTRATS
 # ============================================================
 with tab_contrats:
     st.markdown("### 📄 Liste des Contrats & Mouvements")
@@ -916,7 +861,7 @@ with tab_contrats:
         html_parts = ["""
         <table class="contract-table">
             <thead><tr>
-                <th> Matricule</th><th>📞 Tel</th><th>📋 N° Contrat</th>
+                <th>🚗 Matricule</th><th>📞 Tel</th><th>📋 N° Contrat</th>
                 <th>📅 Départ</th><th>📅 Retour</th><th>📆 Jours</th>
                 <th>💰 Montant</th><th>💸 Reste</th><th>🎁 Caution</th>
                 <th>🛣️ KM Sortie</th><th>🏁 KM Retour</th>
@@ -976,7 +921,7 @@ with tab_contrats:
         st.info("Aucun contrat enregistré.")
 
 # ============================================================
-# --- TAB 3 : RETOURS ---
+# TAB 3 : RETOURS
 # ============================================================
 with tab_logistique:
     st.markdown("### 🔑 Terminal de Restitution")
@@ -1021,13 +966,13 @@ with tab_logistique:
             if not res_dep.empty:
                 row_sel = res_dep.iloc[0]
                 diff_km = int(km_fin) - int(km_dep_de_base)
-                st.markdown(f"** Distance :** <span style='color:#4ade80; font-weight:bold; font-size:22px;'>{diff_km} KM</span>", unsafe_allow_html=True)
+                st.markdown(f"**📊 Distance :** <span style='color:#4ade80; font-weight:bold; font-size:22px;'>{diff_km} KM</span>", unsafe_allow_html=True)
                 st.write(f"**Reste dû :** {row_sel.get('Reste', '0')} DT")
     else:
         st.info("Aucun déplacement en cours.")
 
 # ============================================================
-# --- TAB 4 : PERFORMANCE ---
+# TAB 4 : PERFORMANCE
 # ============================================================
 with tab_analytics:
     st.markdown("### 📊 Performance du Jour")
@@ -1046,12 +991,12 @@ with tab_analytics:
         k1, k2, k3 = st.columns(3)
         with k1: st.metric("📈 DÉPARTS", f"{len(sorties)}")
         with k2: st.metric("🔑 RETOURS", f"{len(entrees)}")
-        with k3: st.metric(" CA DU JOUR", f"{sorties['Val_Prix'].sum():,.2f} DT")
+        with k3: st.metric("💰 CA DU JOUR", f"{sorties['Val_Prix'].sum():,.2f} DT")
 
         st.markdown("<br><hr>", unsafe_allow_html=True)
         col_gauche, col_droite = st.columns(2)
         with col_gauche:
-            st.markdown("###  DÉPARTS")
+            st.markdown("### 🛫 DÉPARTS")
             if not sorties.empty:
                 cols = [c for c in ['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Prix', 'KM_Debut'] if c in sorties.columns]
                 st.dataframe(sorties[cols], use_container_width=True, hide_index=True)
@@ -1066,7 +1011,7 @@ with tab_analytics:
             else: st.info("Aucun retour.")
 
 # ============================================================
-# --- TAB 5 : VIDANGES ---
+# TAB 5 : VIDANGES
 # ============================================================
 with tab_vidange:
     st.markdown("### 🔧 Suivi des Vidanges")
@@ -1079,7 +1024,7 @@ with tab_vidange:
 
         alertes = df_v[df_v['km_restant'] <= 1500]
         if not alertes.empty:
-            st.error(f"️ **ALERTE :** {len(alertes)} véhicule(s) à vidanger !")
+            st.error(f"⚠️ **ALERTE :** {len(alertes)} véhicule(s) à vidanger !")
         else:
             st.success("✅ Flotte OK.")
 
@@ -1109,7 +1054,7 @@ with tab_vidange:
                     date_effective = st.date_input("Date opération : ", datetime.now())
                     action_sync = st.checkbox("Vidange effectuée (reset)")
 
-                if st.button(" ENREGISTRER", use_container_width=True):
+                if st.button("💾 ENREGISTRER", use_container_width=True):
                     if action_sync:
                         update_row(T_VIDANGE, {
                             "KM_Recent": int(nouveau_km), "KM_Dernier_Vidange": int(nouveau_km),
@@ -1127,7 +1072,7 @@ with tab_vidange:
                     rerun()
 
 # ============================================================
-# --- TAB 6 : CRM ---
+# TAB 6 : CRM
 # ============================================================
 with tab_crm:
     st.markdown("### 👥 Comptes Conducteurs")
@@ -1154,4 +1099,105 @@ with tab_crm:
                         st.session_state[f"chk_del_{unique_suffix}"] = False
 
                     with st.expander(f"👤 {safe_str(cli.get('Nom')).upper()} {safe_str(cli.get('Prénom'))} (CIN: {cin_client})", expanded=True):
-                        st.write(f"**📞 Tel :** `{cli.get('Numéro de téléphone', 'N/A')}` | **🚗 Permis :** `{cli.get
+                        st.write(f"**📞 Tel :** `{cli.get('Numéro de téléphone', 'N/A')}` | **🚗 Permis :** `{cli.get('N° Permis', 'N/A')}`")
+                        col_img1, col_img2 = st.columns(2)
+                        with col_img1:
+                            img_cin = cli.get('Image CIN')
+                            if img_cin:
+                                try: st.image(base64.b64decode(img_cin), caption="CIN", use_container_width=True)
+                                except: pass
+                        with col_img2:
+                            img_per = cli.get('Image Permis')
+                            if img_per:
+                                try: st.image(base64.b64decode(img_per), caption="Permis", use_container_width=True)
+                                except: pass
+
+                        col_btn_mod, col_btn_sup = st.columns(2)
+                        with col_btn_mod:
+                            if st.button(f"✏️ MODIFIER", key=f"btn_edit_{unique_suffix}"):
+                                st.session_state[f"mode_edition_{unique_suffix}"] = True
+                                rerun()
+                        with col_btn_sup:
+                            check_sup = st.checkbox("Confirmer suppression", key=f"chk_del_{unique_suffix}")
+                            if st.button(f"🗑️ SUPPRIMER", key=f"btn_del_{unique_suffix}"):
+                                if check_sup:
+                                    delete_row(T_CLIENT, "CIN", cin_client)
+                                    st.success(f"✅ Client supprimé.")
+                                    refresh_data()
+                                    rerun()
+                                else:
+                                    st.warning("Cochez la case de confirmation.")
+
+                        if st.session_state.get(f"mode_edition_{unique_suffix}", False):
+                            with st.form(key=f"form_edit_{unique_suffix}"):
+                                e_prenom = st.text_input("Prénom", value=safe_str(cli.get('Prénom')))
+                                e_nom = st.text_input("Nom", value=safe_str(cli.get('Nom')))
+                                e_tel = st.text_input("Téléphone", value=safe_str(cli.get('Numéro de téléphone')))
+                                e_permis = st.text_input("N° Permis", value=safe_str(cli.get('N° Permis')))
+                                e_d_cin = st.date_input("Date CIN", value=parse_date(cli.get('Date Délivrance CIN')) or datetime.now().date())
+                                e_d_per = st.date_input("Date Permis", value=parse_date(cli.get('Date Délivrance Permis')) or datetime.now().date())
+                                f_cin_r = st.file_uploader("Nouvelle CIN", type=["png", "jpg", "jpeg"], key=f"f_cin_{unique_suffix}")
+                                f_per_r = st.file_uploader("Nouveau Permis", type=["png", "jpg", "jpeg"], key=f"f_per_{unique_suffix}")
+                                if st.form_submit_button("✅ METTRE À JOUR"):
+                                    upd = {
+                                        "Prénom": e_prenom, "Nom": e_nom,
+                                        "Numéro de téléphone": e_tel, "N° Permis": e_permis,
+                                        "Date Délivrance CIN": e_d_cin.strftime("%Y-%m-%d"),
+                                        "Date Délivrance Permis": e_d_per.strftime("%Y-%m-%d")
+                                    }
+                                    if f_cin_r: upd["Image CIN"] = encoder_image_base64(f_cin_r)
+                                    if f_per_r: upd["Image Permis"] = encoder_image_base64(f_per_r)
+                                    update_row(T_CLIENT, upd, "CIN", cin_client)
+                                    st.success("✅ Mis à jour !")
+                                    st.session_state[f"mode_edition_{unique_suffix}"] = False
+                                    refresh_data()
+                                    rerun()
+    with c2:
+        st.markdown("#### ➕ Nouveau Client")
+        with st.form("form_new_client_crm"):
+            n_prenom = st.text_input("Prénom *")
+            n_nom = st.text_input("Nom *")
+            n_cin = st.text_input("N° CIN *")
+            n_tel = st.text_input("Téléphone")
+            n_permis = st.text_input("N° Permis")
+            n_d_cin = st.date_input("Date CIN", value=datetime.now() - timedelta(days=365))
+            n_d_per = st.date_input("Date Permis", value=datetime.now() - timedelta(days=365))
+            f_cin_new = st.file_uploader("Image CIN", type=["png", "jpg", "jpeg"])
+            f_per_new = st.file_uploader("Image Permis", type=["png", "jpg", "jpeg"])
+            if st.form_submit_button("⚡ CRÉER LE PROFIL"):
+                if n_prenom and n_nom and n_cin:
+                    insert_row(T_CLIENT, {
+                        "Prénom": n_prenom, "Nom": n_nom, "CIN": n_cin,
+                        "Numéro de téléphone": n_tel, "N° Permis": n_permis,
+                        "Date Délivrance CIN": n_d_cin.strftime("%Y-%m-%d"),
+                        "Date Délivrance Permis": n_d_per.strftime("%Y-%m-%d"),
+                        "Image CIN": encoder_image_base64(f_cin_new),
+                        "Image Permis": encoder_image_base64(f_per_new)
+                    })
+                    st.success("✅ Client créé !")
+                    refresh_data()
+                    rerun()
+                else:
+                    st.error("❌ Champs obligatoires manquants")
+
+# ============================================================
+# TAB 7 : ADMIN
+# ============================================================
+with tab_admin:
+    st.markdown("### ⚙️ Panneau d'Administration")
+    st.warning("⚠️ Actions irréversibles !")
+    col_a1, col_a2 = st.columns(2)
+    with col_a1:
+        if st.button("🗑️ PURGER TOUS LES MOUVEMENTS"):
+            if st.checkbox("Confirmer la purge des mouvements", key="chk_purge_mouv"):
+                delete_all(T_MOUVEMENT)
+                st.success("✅ Mouvements purgés.")
+                refresh_data()
+                rerun()
+    with col_a2:
+        if st.button("🗑️ PURGER TOUS LES CLIENTS"):
+            if st.checkbox("Confirmer la purge des clients", key="chk_purge_cli"):
+                delete_all(T_CLIENT)
+                st.success("✅ Clients purgés.")
+                refresh_data()
+                rerun()
