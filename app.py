@@ -10,8 +10,7 @@ from supabase import create_client, Client
 # --- CONFIGURATION SUPABASE SÉCURISÉE ---
 # Récupère les clés depuis les secrets Streamlit (Cloud ou local)
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets[SUPABASE_KEY"]
-
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 # Initialisation du client Supabase
 @st.cache_resource
 def init_supabase():
