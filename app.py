@@ -25,7 +25,7 @@ def style_apply(df_style, func, **kwargs):
 st.set_page_config(
     page_title="BBNH OS — Gestion Premium",
     layout="wide",
-    page_icon="🏎️",
+    page_icon="️",
     initial_sidebar_state="expanded"
 )
 
@@ -102,14 +102,6 @@ div.stButton > button:hover {
 .status-paid { background-color: #e6f7ed; color: #28a745; border: 1px solid #28a745; }
 .status-pending { background-color: #fff4e6; color: #fd7e14; border: 1px solid #fd7e14; }
 .km-value { font-weight: bold; margin-bottom: 2px; }
-
-/* Style spécifique pour le planning */
-.planning-legend {
-    display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px;
-    padding: 15px; background-color: #1f2937; border-radius: 8px;
-}
-.legend-item { display: flex; align-items: center; gap: 8px; }
-.legend-box { width: 20px; height: 20px; border-radius: 4px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -133,7 +125,7 @@ supabase = init_supabase()
 if supabase is None:
     st.error("🔴 **Connexion Supabase impossible**")
     st.markdown("""
-    ###  Configuration requise
+    ### 📋 Configuration requise
     Créez un fichier `.streamlit/secrets.toml` avec :
     ```toml
     SUPABASE_URL = "https://VOTRE_PROJET.supabase.co"
@@ -546,7 +538,7 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
         mod_nbr_jours = max(1, (mod_d2 - mod_d1).days)
         st.sidebar.markdown(f"**🔢 Durée :** `{mod_nbr_jours} jour(s)`")
 
-        mod_prix_unitaire = st.sidebar.number_input(" Prix / Jour (DT) : ", min_value=0, value=100, key="mod_pu")
+        mod_prix_unitaire = st.sidebar.number_input("💰 Prix / Jour (DT) : ", min_value=0, value=100, key="mod_pu")
         mod_prix = st.sidebar.number_input("Prix Total (DT) : ", value=int(mod_nbr_jours * mod_prix_unitaire), key="mod_tot")
         mod_caution = st.sidebar.number_input("Caution (DT) : ", value=0, key="mod_cau")
         mod_reste = mod_prix - mod_caution
@@ -558,7 +550,7 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
         mod_km_deb = st.sidebar.number_input("KM Départ : ", min_value=0, value=safe_int(row_init.get('KM_Debut')))
         mod_note = st.sidebar.text_area("Note : ", value=safe_str(row_init.get('Info_Note')))
 
-        if st.sidebar.button("💾 ENREGISTRER LES MODIFICATIONS"):
+        if st.sidebar.button(" ENREGISTRER LES MODIFICATIONS"):
             try:
                 str_mod_d1, str_mod_d2 = mod_d1.strftime("%Y-%m-%d"), mod_d2.strftime("%Y-%m-%d")
                 str_mod_t1, str_mod_t2 = mod_t1.strftime("%H:%M"), mod_t2.strftime("%H:%M")
@@ -624,7 +616,7 @@ with st.container(border=True):
     with c_search2: search_date_fin = st.date_input("📅 Date de Retour : ", datetime.now() + timedelta(days=3), key="adv_search_end")
     with c_search3:
         st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-        btn_recherche_dispo = st.button(" Vérifier les Disponibilités", use_container_width=True)
+        btn_recherche_dispo = st.button("🔍 Vérifier les Disponibilités", use_container_width=True)
 
     if btn_recherche_dispo:
         str_s_start = search_date_debut.strftime("%Y-%m-%d")
@@ -658,30 +650,30 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 # Onglets
 tab_planning, tab_contrats, tab_logistique, tab_analytics, tab_vidange, tab_crm, tab_admin = st.tabs([
-    "️ PLANNING", "📄 CONTRATS", "🔑 RETOURS",
-    "📊 PERFORMANCES", "🔧 VIDANGES", "👥 CRM", "️ ADMIN"
+    "🗓️ PLANNING", "📄 CONTRATS", "🔑 RETOURS",
+    " PERFORMANCES", "🔧 VIDANGES", "👥 CRM", "⚙️ ADMIN"
 ])
 
 # ============================================================
-# --- TAB 1 : PLANNING (DESIGN BBNH STYLE IMAGE) ---
+# --- TAB 1 : PLANNING (365 JOURS AVEC CODE COULEUR) ---
 # ============================================================
 with tab_planning:
-    st.markdown("### 🗓️ PLANNING BBNH")
+    st.markdown("### 🗓️ PLANNING ANNUEL BBNH")
     
     # Filtres
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        date_base = st.date_input("📅 Date de début :", datetime.now(), key="planning_date")
+        date_base = st.date_input("📅 Date de début :", datetime(2026, 1, 1), key="planning_date")
     with col2:
-        nb_jours_aff = st.slider("Nombre de jours :", 7, 30, 7)
-    with col3:
         vehicule_recherche = st.selectbox(
             "🚘 Filtrer véhicule :", 
             ["-- Toutes --"] + liste_vehicules_opt
         )
+    with col3:
+        recherche_date = st.date_input("🎯 Focus date :", datetime.now())
     
-    # Création des colonnes de dates
-    array_jours = [date_base + timedelta(days=i) for i in range(nb_jours_aff)]
+    # ⚡ 365 JOURS COMPLETS
+    array_jours = [date_base + timedelta(days=i) for i in range(365)]
     nom_colonnes = [j.strftime("%d/%m") for j in array_jours]
     
     # Filtrage des voitures valides
@@ -740,23 +732,30 @@ with tab_planning:
                 # Calcul de la durée
                 duree_jours = (d_fin_mv - d_debut_mv).days + 1
                 
-                # Déterminer le type d'affichage et la couleur
+                # ============================================================
+                # CODE COULEUR EXACT DE L'IMAGE
+                # ============================================================
+                # Vert clair (#86efac) : Réservations [10:00→10:00], [11:00→11:00], etc.
+                # Vert foncé (#22c55e) : Locations longues [18:00→18:00] sur plusieurs jours
+                # Rouge (#ef4444) : Locations urgentes/courtes [09:00→12:00]
+                # Orange/jaune (#fef3c7) : Garage/Maintenance
+                
                 if "garage" in type_statut or "maintenance" in type_statut:
                     # Garage: fond orange/jaune
                     format_text = f"🛠️ GARAGE"
                     color_type = "garage"
                 elif "réservation" in type_statut:
-                    # Réservation: fond vert clair
+                    # Réservation: vert clair
                     format_text = f"[{h_debut}→{h_fin}] {client_v}"
                     color_type = "reservation"
                 else:
                     # Location normale
-                    if duree_jours <= 1:
-                        # Location courte (même jour) : vert clair
+                    if duree_jours == 1:
+                        # Location d'un jour : vert clair (comme [10:00→10:00])
                         format_text = f"[{h_debut}→{h_fin}] {client_v}"
                         color_type = "location_courte"
                     else:
-                        # Location longue : vert foncé
+                        # Location multi-jours : vert foncé (comme [18:00→18:00])
                         format_text = f"[{h_debut}→{h_fin}] {client_v}"
                         color_type = "location_longue"
                 
@@ -782,16 +781,25 @@ with tab_planning:
                 if mat_extracted in suivi_jours:
                     for key_day, data in suivi_jours[mat_extracted].items():
                         if key_day in df_final_grid.columns and data["texte"]:
-                            df_final_grid.at[idx, key_day] = data["texte"]
+                            # Stocker avec le type de couleur
+                            df_final_grid.at[idx, key_day] = f"{data['texte']}|{data['type']}"
         
         # ============================================================
-        # FONCTION DE STYLE - DESIGN EXACT DE L'IMAGE
+        # FONCTION DE STYLE - CODE COULEUR EXACT
         # ============================================================
         def style_planning_bbnh(val):
             if pd.isna(val):
                 return "background-color: #ffffff; color: #000000; font-size: 11px;"
             
             val_str = str(val)
+            
+            # Extraire le type de couleur si présent
+            color_type = ""
+            texte_affichage = val_str
+            if "|" in val_str:
+                parts = val_str.split("|")
+                texte_affichage = parts[0]
+                color_type = parts[1] if len(parts) > 1 else ""
             
             # Disponible (point noir) - fond blanc
             if "● Disponible" in val_str:
@@ -805,7 +813,7 @@ with tab_planning:
                 """
             
             # Garage/Maintenance - orange/jaune
-            elif "🛠️" in val_str or "GARAGE" in val_str:
+            elif color_type == "garage" or "🛠️" in val_str:
                 return """
                     background-color: #fef3c7; 
                     color: #92400e; 
@@ -816,7 +824,7 @@ with tab_planning:
                 """
             
             # Réservation - vert clair (#86efac)
-            elif "●" in val_str and "[" in val_str:
+            elif color_type == "reservation":
                 return """
                     background-color: #86efac; 
                     color: #166534; 
@@ -826,15 +834,23 @@ with tab_planning:
                     padding: 8px;
                 """
             
-            # Location courte - vert clair
-            elif "[" in val_str and "→" in val_str:
-                # Détecter si c'est une location urgente (rouge)
-                # Basé sur le nom du client ou autres critères
-                # Pour l'instant, on utilise vert clair par défaut
+            # Location courte (1 jour) - vert clair (#86efac)
+            elif color_type == "location_courte":
                 return """
                     background-color: #86efac; 
                     color: #166534; 
                     font-weight: 600; 
+                    font-size: 11px;
+                    text-align: left;
+                    padding: 8px;
+                """
+            
+            # Location longue (multi-jours) - vert foncé (#22c55e)
+            elif color_type == "location_longue":
+                return """
+                    background-color: #22c55e; 
+                    color: #ffffff; 
+                    font-weight: 700; 
                     font-size: 11px;
                     text-align: left;
                     padding: 8px;
@@ -847,7 +863,7 @@ with tab_planning:
         cols_ordonnees = ['Flotte BBNH'] + nom_colonnes
         styled_df = df_final_grid[cols_ordonnees].style.applymap(style_planning_bbnh)
         
-        # Affichage
+        # Affichage avec scroll
         st.dataframe(
             styled_df,
             use_container_width=True,
@@ -866,11 +882,11 @@ with tab_planning:
                 </div>
                 <div style='display: flex; align-items: center; gap: 8px;'>
                     <div style='width: 20px; height: 20px; background-color: #86efac; border: 1px solid #22c55e; border-radius: 4px;'></div>
-                    <span style='color: white; font-size: 13px;'>Réservation / Location courte</span>
+                    <span style='color: white; font-size: 13px;'>Réservation / Location 1 jour</span>
                 </div>
                 <div style='display: flex; align-items: center; gap: 8px;'>
                     <div style='width: 20px; height: 20px; background-color: #22c55e; border: 1px solid #16a34a; border-radius: 4px;'></div>
-                    <span style='color: white; font-size: 13px;'>Location longue durée</span>
+                    <span style='color: white; font-size: 13px;'>Location multi-jours</span>
                 </div>
                 <div style='display: flex; align-items: center; gap: 8px;'>
                     <div style='width: 20px; height: 20px; background-color: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px;'></div>
@@ -890,7 +906,7 @@ with tab_planning:
 # --- TAB 2 : CONTRATS ---
 # ============================================================
 with tab_contrats:
-    st.markdown("###  Liste des Contrats & Mouvements")
+    st.markdown("### 📄 Liste des Contrats & Mouvements")
     if not df_mouvs.empty and 'id' in df_mouvs.columns:
         df_contrats_list = df_mouvs.sort_values(by='id', ascending=False)
     else:
@@ -900,8 +916,8 @@ with tab_contrats:
         html_parts = ["""
         <table class="contract-table">
             <thead><tr>
-                <th>🚗 Matricule</th><th>📞 Tel</th><th>📋 N° Contrat</th>
-                <th>📅 Départ</th><th>📅 Retour</th><th> Jours</th>
+                <th> Matricule</th><th>📞 Tel</th><th>📋 N° Contrat</th>
+                <th>📅 Départ</th><th>📅 Retour</th><th>📆 Jours</th>
                 <th>💰 Montant</th><th>💸 Reste</th><th>🎁 Caution</th>
                 <th>🛣️ KM Sortie</th><th>🏁 KM Retour</th>
             </tr></thead><tbody>
@@ -1000,12 +1016,12 @@ with tab_logistique:
                     refresh_data()
                     rerun()
                 except Exception as e:
-                    st.error(f" Erreur : {e}")
+                    st.error(f"❌ Erreur : {e}")
         with col_details:
             if not res_dep.empty:
                 row_sel = res_dep.iloc[0]
                 diff_km = int(km_fin) - int(km_dep_de_base)
-                st.markdown(f"**📊 Distance :** <span style='color:#4ade80; font-weight:bold; font-size:22px;'>{diff_km} KM</span>", unsafe_allow_html=True)
+                st.markdown(f"** Distance :** <span style='color:#4ade80; font-weight:bold; font-size:22px;'>{diff_km} KM</span>", unsafe_allow_html=True)
                 st.write(f"**Reste dû :** {row_sel.get('Reste', '0')} DT")
     else:
         st.info("Aucun déplacement en cours.")
@@ -1014,7 +1030,7 @@ with tab_logistique:
 # --- TAB 4 : PERFORMANCE ---
 # ============================================================
 with tab_analytics:
-    st.markdown("###  Performance du Jour")
+    st.markdown("### 📊 Performance du Jour")
     day_target = st.date_input("Journée d'analyse :", datetime.now())
     if not df_mouvs.empty:
         df_stats = df_mouvs.copy()
@@ -1028,20 +1044,20 @@ with tab_analytics:
         entrees = df_stats[df_stats['Clean_F'] == day_target]
 
         k1, k2, k3 = st.columns(3)
-        with k1: st.metric(" DÉPARTS", f"{len(sorties)}")
+        with k1: st.metric("📈 DÉPARTS", f"{len(sorties)}")
         with k2: st.metric("🔑 RETOURS", f"{len(entrees)}")
-        with k3: st.metric("💰 CA DU JOUR", f"{sorties['Val_Prix'].sum():,.2f} DT")
+        with k3: st.metric(" CA DU JOUR", f"{sorties['Val_Prix'].sum():,.2f} DT")
 
         st.markdown("<br><hr>", unsafe_allow_html=True)
         col_gauche, col_droite = st.columns(2)
         with col_gauche:
-            st.markdown("### 🛫 DÉPARTS")
+            st.markdown("###  DÉPARTS")
             if not sorties.empty:
                 cols = [c for c in ['Matricule', 'Client', 'Date_Debut', 'Date_Fin', 'Prix', 'KM_Debut'] if c in sorties.columns]
                 st.dataframe(sorties[cols], use_container_width=True, hide_index=True)
             else: st.info("Aucun départ.")
         with col_droite:
-            st.markdown("###  RETOURS")
+            st.markdown("### 🛬 RETOURS")
             if not entrees.empty:
                 entrees_c = entrees.copy()
                 entrees_c['KM Roulé'] = entrees_c['KM_Fin'] - entrees_c['KM_Debut']
@@ -1063,7 +1079,7 @@ with tab_vidange:
 
         alertes = df_v[df_v['km_restant'] <= 1500]
         if not alertes.empty:
-            st.error(f"⚠️ **ALERTE :** {len(alertes)} véhicule(s) à vidanger !")
+            st.error(f"️ **ALERTE :** {len(alertes)} véhicule(s) à vidanger !")
         else:
             st.success("✅ Flotte OK.")
 
@@ -1093,7 +1109,7 @@ with tab_vidange:
                     date_effective = st.date_input("Date opération : ", datetime.now())
                     action_sync = st.checkbox("Vidange effectuée (reset)")
 
-                if st.button("💾 ENREGISTRER", use_container_width=True):
+                if st.button(" ENREGISTRER", use_container_width=True):
                     if action_sync:
                         update_row(T_VIDANGE, {
                             "KM_Recent": int(nouveau_km), "KM_Dernier_Vidange": int(nouveau_km),
@@ -1114,10 +1130,10 @@ with tab_vidange:
 # --- TAB 6 : CRM ---
 # ============================================================
 with tab_crm:
-    st.markdown("###  Comptes Conducteurs")
+    st.markdown("### 👥 Comptes Conducteurs")
     c1, c2 = st.columns([5, 4])
     with c1:
-        st.markdown("####  Consultation")
+        st.markdown("#### 🔍 Consultation")
         search_query = st.text_input("Rechercher (Nom, CIN) : ", key="crm_search_field")
         if search_query and not df_clients.empty:
             mask = (
@@ -1138,105 +1154,4 @@ with tab_crm:
                         st.session_state[f"chk_del_{unique_suffix}"] = False
 
                     with st.expander(f"👤 {safe_str(cli.get('Nom')).upper()} {safe_str(cli.get('Prénom'))} (CIN: {cin_client})", expanded=True):
-                        st.write(f"** Tel :** `{cli.get('Numéro de téléphone', 'N/A')}` | **🚗 Permis :** `{cli.get('N° Permis', 'N/A')}`")
-                        col_img1, col_img2 = st.columns(2)
-                        with col_img1:
-                            img_cin = cli.get('Image CIN')
-                            if img_cin:
-                                try: st.image(base64.b64decode(img_cin), caption="CIN", use_container_width=True)
-                                except: pass
-                        with col_img2:
-                            img_per = cli.get('Image Permis')
-                            if img_per:
-                                try: st.image(base64.b64decode(img_per), caption="Permis", use_container_width=True)
-                                except: pass
-
-                        col_btn_mod, col_btn_sup = st.columns(2)
-                        with col_btn_mod:
-                            if st.button(f"✏️ MODIFIER", key=f"btn_edit_{unique_suffix}"):
-                                st.session_state[f"mode_edition_{unique_suffix}"] = True
-                                rerun()
-                        with col_btn_sup:
-                            check_sup = st.checkbox("Confirmer suppression", key=f"chk_del_{unique_suffix}")
-                            if st.button(f"🗑️ SUPPRIMER", key=f"btn_del_{unique_suffix}"):
-                                if check_sup:
-                                    delete_row(T_CLIENT, "CIN", cin_client)
-                                    st.success(f"✅ Client supprimé.")
-                                    refresh_data()
-                                    rerun()
-                                else:
-                                    st.warning("Cochez la case de confirmation.")
-
-                        if st.session_state.get(f"mode_edition_{unique_suffix}", False):
-                            with st.form(key=f"form_edit_{unique_suffix}"):
-                                e_prenom = st.text_input("Prénom", value=safe_str(cli.get('Prénom')))
-                                e_nom = st.text_input("Nom", value=safe_str(cli.get('Nom')))
-                                e_tel = st.text_input("Téléphone", value=safe_str(cli.get('Numéro de téléphone')))
-                                e_permis = st.text_input("N° Permis", value=safe_str(cli.get('N° Permis')))
-                                e_d_cin = st.date_input("Date CIN", value=parse_date(cli.get('Date Délivrance CIN')) or datetime.now().date())
-                                e_d_per = st.date_input("Date Permis", value=parse_date(cli.get('Date Délivrance Permis')) or datetime.now().date())
-                                f_cin_r = st.file_uploader("Nouvelle CIN", type=["png", "jpg", "jpeg"], key=f"f_cin_{unique_suffix}")
-                                f_per_r = st.file_uploader("Nouveau Permis", type=["png", "jpg", "jpeg"], key=f"f_per_{unique_suffix}")
-                                if st.form_submit_button("✅ METTRE À JOUR"):
-                                    upd = {
-                                        "Prénom": e_prenom, "Nom": e_nom,
-                                        "Numéro de téléphone": e_tel, "N° Permis": e_permis,
-                                        "Date Délivrance CIN": e_d_cin.strftime("%Y-%m-%d"),
-                                        "Date Délivrance Permis": e_d_per.strftime("%Y-%m-%d")
-                                    }
-                                    if f_cin_r: upd["Image CIN"] = encoder_image_base64(f_cin_r)
-                                    if f_per_r: upd["Image Permis"] = encoder_image_base64(f_per_r)
-                                    update_row(T_CLIENT, upd, "CIN", cin_client)
-                                    st.success("✅ Mis à jour !")
-                                    st.session_state[f"mode_edition_{unique_suffix}"] = False
-                                    refresh_data()
-                                    rerun()
-    with c2:
-        st.markdown("#### ➕ Nouveau Client")
-        with st.form("form_new_client_crm"):
-            n_prenom = st.text_input("Prénom *")
-            n_nom = st.text_input("Nom *")
-            n_cin = st.text_input("N° CIN *")
-            n_tel = st.text_input("Téléphone")
-            n_permis = st.text_input("N° Permis")
-            n_d_cin = st.date_input("Date CIN", value=datetime.now() - timedelta(days=365))
-            n_d_per = st.date_input("Date Permis", value=datetime.now() - timedelta(days=365))
-            f_cin_new = st.file_uploader("Image CIN", type=["png", "jpg", "jpeg"])
-            f_per_new = st.file_uploader("Image Permis", type=["png", "jpg", "jpeg"])
-            if st.form_submit_button("⚡ CRÉER LE PROFIL"):
-                if n_prenom and n_nom and n_cin:
-                    insert_row(T_CLIENT, {
-                        "Prénom": n_prenom, "Nom": n_nom, "CIN": n_cin,
-                        "Numéro de téléphone": n_tel, "N° Permis": n_permis,
-                        "Date Délivrance CIN": n_d_cin.strftime("%Y-%m-%d"),
-                        "Date Délivrance Permis": n_d_per.strftime("%Y-%m-%d"),
-                        "Image CIN": encoder_image_base64(f_cin_new),
-                        "Image Permis": encoder_image_base64(f_per_new)
-                    })
-                    st.success("✅ Client créé !")
-                    refresh_data()
-                    rerun()
-                else:
-                    st.error(" Champs obligatoires manquants")
-
-# ============================================================
-# --- TAB 7 : ADMIN ---
-# ============================================================
-with tab_admin:
-    st.markdown("### ⚙️ Panneau d'Administration")
-    st.warning("⚠️ Actions irréversibles !")
-    col_a1, col_a2 = st.columns(2)
-    with col_a1:
-        if st.button("🗑️ PURGER TOUS LES MOUVEMENTS"):
-            if st.checkbox("Confirmer la purge des mouvements", key="chk_purge_mouv"):
-                delete_all(T_MOUVEMENT)
-                st.success("✅ Mouvements purgés.")
-                refresh_data()
-                rerun()
-    with col_a2:
-        if st.button("🗑️ PURGER TOUS LES CLIENTS"):
-            if st.checkbox("Confirmer la purge des clients", key="chk_purge_cli"):
-                delete_all(T_CLIENT)
-                st.success("✅ Clients purgés.")
-                refresh_data()
-                rerun()
+                        st.write(f"**📞 Tel :** `{cli.get('Numéro de téléphone', 'N/A')}` | **🚗 Permis :** `{cli.get
