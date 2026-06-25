@@ -102,6 +102,14 @@ div.stButton > button:hover {
 .status-paid { background-color: #e6f7ed; color: #28a745; border: 1px solid #28a745; }
 .status-pending { background-color: #fff4e6; color: #fd7e14; border: 1px solid #fd7e14; }
 .km-value { font-weight: bold; margin-bottom: 2px; }
+
+/* Style spécifique pour le planning */
+.planning-legend {
+    display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px;
+    padding: 15px; background-color: #1f2937; border-radius: 8px;
+}
+.legend-item { display: flex; align-items: center; gap: 8px; }
+.legend-box { width: 20px; height: 20px; border-radius: 4px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -125,7 +133,7 @@ supabase = init_supabase()
 if supabase is None:
     st.error("🔴 **Connexion Supabase impossible**")
     st.markdown("""
-    ### 📋 Configuration requise
+    ###  Configuration requise
     Créez un fichier `.streamlit/secrets.toml` avec :
     ```toml
     SUPABASE_URL = "https://VOTRE_PROJET.supabase.co"
@@ -142,16 +150,15 @@ T_VIDANGE = "vidange"
 T_CONTRAT = "carbbnh"
 
 # ============================================================
-# ⚡ SYSTÈME DE CACHE SESSION STATE (CLÉ DE LA PERFORMANCE)
+# ⚡ SYSTÈME DE CACHE SESSION STATE
 # ============================================================
 def load_all_data(force=False):
-    """Charge TOUTES les données en une seule fois et les stocke en session_state"""
+    """Charge TOUTES les données en une seule fois"""
     if not force and st.session_state.get('data_loaded', False):
         return
     
     try:
         with st.spinner("Chargement..."):
-            # Récupération batch (toutes les tables d'un coup)
             r1 = supabase.table(T_VEHICULE).select("*").execute()
             r2 = supabase.table(T_CLIENT).select("*").execute()
             r3 = supabase.table(T_MOUVEMENT).select("*").execute()
@@ -164,7 +171,6 @@ def load_all_data(force=False):
             st.session_state['df_vidanges'] = pd.DataFrame(r4.data) if r4.data else pd.DataFrame()
             st.session_state['df_contrats'] = pd.DataFrame(r5.data) if r5.data else pd.DataFrame()
             st.session_state['data_loaded'] = True
-            st.session_state['data_version'] = st.session_state.get('data_version', 0) + 1
     except Exception as e:
         st.error(f"Erreur chargement: {e}")
 
@@ -173,7 +179,7 @@ def refresh_data():
     st.session_state['data_loaded'] = False
     load_all_data(force=True)
 
-# Chargement initial (une seule fois par session)
+# Chargement initial
 load_all_data()
 
 # Accès rapide aux dataframes
@@ -236,7 +242,7 @@ def parse_date(val):
     except: return None
 
 # ============================================================
-# FONCTIONS DATABASE (OPTIMISÉES)
+# FONCTIONS DATABASE
 # ============================================================
 def insert_row(table_name, data_dict):
     try:
@@ -303,7 +309,7 @@ def upsert_vidange(matricule, marque, km_recent=0):
         return False
 
 # ============================================================
-# LISTES POUR SELECTBOX (CACHÉES)
+# LISTES POUR SELECTBOX
 # ============================================================
 @st.cache_data(show_spinner=False)
 def build_liste_clients(_df_clients):
@@ -360,7 +366,6 @@ with st.sidebar:
 
     st.markdown("<br><hr>", unsafe_allow_html=True)
     
-    # ⚡ Bouton de rafraîchissement manuel
     if st.button("🔄 Rafraîchir les données", use_container_width=True):
         refresh_data()
         rerun()
@@ -369,7 +374,7 @@ with st.sidebar:
 # FORMULAIRES SIDEBAR
 # ============================================================
 if menu_action == "📝 Nouveau Contrat / Réservation":
-    st.sidebar.markdown("### 📝 Éditer une nouvelle fiche")
+    st.sidebar.markdown("###  Éditer une nouvelle fiche")
     nature = st.sidebar.selectbox("Nature : ", ["Contrat Location", "Réservation", "Maintenance / Garage"])
     vehicule = st.sidebar.selectbox("Véhicule : ", liste_vehicules_opt) if liste_vehicules_opt else st.sidebar.text_input("Véhicule : ")
     client_b = st.sidebar.selectbox("Client : ", liste_clients_opt)
@@ -450,7 +455,7 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
             else:
                 st.error("❌ Échec de création")
         except Exception as e:
-            st.error(f"❌ Erreur : {e}")
+            st.error(f" Erreur : {e}")
             traceback.print_exc()
 
 elif menu_action == "🚗 Ajouter un Véhicule à la Flotte":
@@ -541,7 +546,7 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
         mod_nbr_jours = max(1, (mod_d2 - mod_d1).days)
         st.sidebar.markdown(f"**🔢 Durée :** `{mod_nbr_jours} jour(s)`")
 
-        mod_prix_unitaire = st.sidebar.number_input("💰 Prix / Jour (DT) : ", min_value=0, value=100, key="mod_pu")
+        mod_prix_unitaire = st.sidebar.number_input(" Prix / Jour (DT) : ", min_value=0, value=100, key="mod_pu")
         mod_prix = st.sidebar.number_input("Prix Total (DT) : ", value=int(mod_nbr_jours * mod_prix_unitaire), key="mod_tot")
         mod_caution = st.sidebar.number_input("Caution (DT) : ", value=0, key="mod_cau")
         mod_reste = mod_prix - mod_caution
@@ -619,7 +624,7 @@ with st.container(border=True):
     with c_search2: search_date_fin = st.date_input("📅 Date de Retour : ", datetime.now() + timedelta(days=3), key="adv_search_end")
     with c_search3:
         st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-        btn_recherche_dispo = st.button("🔍 Vérifier les Disponibilités", use_container_width=True)
+        btn_recherche_dispo = st.button(" Vérifier les Disponibilités", use_container_width=True)
 
     if btn_recherche_dispo:
         str_s_start = search_date_debut.strftime("%Y-%m-%d")
@@ -627,7 +632,6 @@ with st.container(border=True):
 
         df_disponibles = df_voitures.copy() if not df_voitures.empty else pd.DataFrame()
         if not df_mouvs.empty and not df_disponibles.empty and 'Matricule' in df_disponibles.columns:
-            # ⚡ Optimisation vectorisée
             df_mouvs_en_cours = df_mouvs[df_mouvs.get('Statut_Mouvement', pd.Series()) == 'En cours'].copy()
             if not df_mouvs_en_cours.empty:
                 df_mouvs_en_cours['Date_Debut_dt'] = pd.to_datetime(df_mouvs_en_cours['Date_Debut'], errors='coerce').dt.date
@@ -644,7 +648,7 @@ with st.container(border=True):
             st.markdown(f"##### 🚗 {len(df_disponibles)} Véhicule(s) disponible(s) du `{str_s_start}` au `{str_s_end}` :")
             cols_aff = [c for c in ['Matricule', 'Marque', 'Modèle', 'Année'] if c in df_disponibles.columns]
             df_disp_aff = df_disponibles[cols_aff].rename(columns={
-                'Matricule': '🚘 Matricule', 'Marque': 'Marque', 'Modèle': 'Modèle', 'Année': 'Année'
+                'Matricule': ' Matricule', 'Marque': 'Marque', 'Modèle': 'Modèle', 'Année': 'Année'
             })
             st.dataframe(df_disp_aff, use_container_width=True, hide_index=True)
         else:
@@ -654,127 +658,239 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 # Onglets
 tab_planning, tab_contrats, tab_logistique, tab_analytics, tab_vidange, tab_crm, tab_admin = st.tabs([
-    "🗓️ PLANNING", "📄 CONTRATS", "🔑 RETOURS",
-    "📊 PERFORMANCES", "🔧 VIDANGES", "👥 CRM", "⚙️ ADMIN"
+    "️ PLANNING", "📄 CONTRATS", "🔑 RETOURS",
+    "📊 PERFORMANCES", "🔧 VIDANGES", "👥 CRM", "️ ADMIN"
 ])
 
-# --- TAB 1 : PLANNING (ULTRA-OPTIMISÉ) ---
+# ============================================================
+# --- TAB 1 : PLANNING (DESIGN BBNH STYLE IMAGE) ---
+# ============================================================
 with tab_planning:
-    st.markdown("### 🗓️ Vue Globale & Filtres")
-    f_col_car, f_col_date_start, f_col_date_target = st.columns([2, 1.5, 1.5])
-    with f_col_car:
-        options_recherche_voiture = ["-- Toutes les voitures --"] + liste_vehicules_opt
-        vehicule_recherche = st.selectbox("🚘 Filtrer par véhicule :", options_recherche_voiture)
-    with f_col_date_start:
-        date_base = st.date_input("Date de début de la grille :", datetime(2026, 1, 1), key="grid_bbnh_date")
-    with f_col_date_target:
-        recherche_date = st.date_input("📅 Focus date :", datetime(2026, 6, 12))
-
-    # ⚡ Réduit à 30 jours (au lieu de 365)
-    array_jours = [date_base + timedelta(days=i) for i in range(30)]
+    st.markdown("### 🗓️ PLANNING BBNH")
+    
+    # Filtres
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        date_base = st.date_input("📅 Date de début :", datetime.now(), key="planning_date")
+    with col2:
+        nb_jours_aff = st.slider("Nombre de jours :", 7, 30, 7)
+    with col3:
+        vehicule_recherche = st.selectbox(
+            "🚘 Filtrer véhicule :", 
+            ["-- Toutes --"] + liste_vehicules_opt
+        )
+    
+    # Création des colonnes de dates
+    array_jours = [date_base + timedelta(days=i) for i in range(nb_jours_aff)]
     nom_colonnes = [j.strftime("%d/%m") for j in array_jours]
     
-    df_voitures_valides = df_voitures[df_voitures['Matricule'].notna() & (df_voitures['Matricule'].astype(str).str.strip() != '')] if not df_voitures.empty else pd.DataFrame()
-
+    # Filtrage des voitures valides
+    df_voitures_valides = df_voitures[
+        df_voitures['Matricule'].notna() & 
+        (df_voitures['Matricule'].astype(str).str.strip() != '')
+    ].copy()
+    
+    if vehicule_recherche != "-- Toutes --":
+        df_voitures_valides = df_voitures_valides[
+            df_voitures_valides['Matricule'].astype(str).str.strip() == vehicule_recherche
+        ]
+    
     if not df_voitures_valides.empty:
-        # ⚡ Construction vectorisée de la matrice
-        voitures_filtrees = df_voitures_valides
-        if vehicule_recherche != "-- Toutes les voitures --":
-            voitures_filtrees = voitures_filtrees[voitures_filtrees['Matricule'].astype(str).str.strip() == vehicule_recherche]
-        
-        if not voitures_filtrees.empty:
-            build_matrix = []
-            for _, car in voitures_filtrees.iterrows():
-                immat = safe_str(car.get('Matricule'))
-                modele = safe_str(car.get('Modèle', car.get('Marque', 'Véhicule')))
-                ligne = {"Flotte BBNH": f"🚘 {modele} — [{immat}]"}
-                for col_j in nom_colonnes: ligne[col_j] = "●"
-                build_matrix.append(ligne)
-
-            df_final_grid = pd.DataFrame(build_matrix)
+        # Construction de la matrice
+        build_matrix = []
+        for _, car in df_voitures_valides.iterrows():
+            immat = safe_str(car.get('Matricule'))
+            modele = safe_str(car.get('Modèle', car.get('Marque', 'Véhicule')))
+            marque = safe_str(car.get('Marque', ''))
             
-            # ⚡ Pré-calcul des mouvements (évite iterrows multiples)
-            if not df_mouvs.empty:
-                df_mouvs_valid = df_mouvs.copy()
-                df_mouvs_valid['Date_Debut_dt'] = pd.to_datetime(df_mouvs_valid['Date_Debut'], errors='coerce').dt.date
-                df_mouvs_valid['Date_Fin_dt'] = pd.to_datetime(df_mouvs_valid['Date_Fin'], errors='coerce').dt.date
-                df_mouvs_valid = df_mouvs_valid[df_mouvs_valid['Date_Debut_dt'].notna() & df_mouvs_valid['Date_Fin_dt'].notna()]
+            # Format: MARQUE — [MATRICULE]
+            ligne = {"Flotte BBNH": f"{marque} — [{immat}]"}
+            
+            # Initialisation: toutes les cases "● Disponible"
+            for col_j in nom_colonnes:
+                ligne[col_j] = "● Disponible"
+            
+            build_matrix.append(ligne)
+        
+        df_final_grid = pd.DataFrame(build_matrix)
+        
+        # Traitement des mouvements
+        if not df_mouvs.empty:
+            suivi_jours = {}
+            
+            for _, mv in df_mouvs.iterrows():
+                m_v = safe_str(mv.get('Matricule'))
+                if not m_v:
+                    continue
+                    
+                client_v = safe_str(mv.get('Client', 'Inconnu'))
+                type_statut = safe_str(mv.get('Type_Statut', '')).lower()
                 
-                suivi_jours = {}
-                for _, mv in df_mouvs_valid.iterrows():
-                    m_v = safe_str(mv.get('Matricule'))
-                    if not m_v: continue
-                    
-                    d_debut_mv = mv['Date_Debut_dt']
-                    d_fin_mv = mv['Date_Fin_dt']
-                    
-                    # ⚡ Ne traite que les jours dans la plage visible
-                    jours_dans_plage = [j for j in array_jours if d_debut_mv <= j <= d_fin_mv]
-                    if not jours_dans_plage: continue
-                    
-                    s_v = safe_str(mv.get('Type_Statut')).lower()
-                    client_v = safe_str(mv.get('Client'))
-                    h_deb_label = formater_heure_propre(mv.get('Heure_Debut'))
-                    h_fin_label = formater_heure_propre(mv.get('Heure_Fin'))
-                    
-                    if m_v not in suivi_jours: suivi_jours[m_v] = {}
-                    
-                    for j in jours_dans_plage:
+                # Récupération des heures
+                h_debut = formater_heure_propre(mv.get('Heure_Debut'))
+                h_fin = formater_heure_propre(mv.get('Heure_Fin'))
+                
+                # Dates
+                d_debut_mv = parse_date(mv.get('Date_Debut'))
+                d_fin_mv = parse_date(mv.get('Date_Fin'))
+                
+                if not (d_debut_mv and d_fin_mv):
+                    continue
+                
+                # Calcul de la durée
+                duree_jours = (d_fin_mv - d_debut_mv).days + 1
+                
+                # Déterminer le type d'affichage et la couleur
+                if "garage" in type_statut or "maintenance" in type_statut:
+                    # Garage: fond orange/jaune
+                    format_text = f"🛠️ GARAGE"
+                    color_type = "garage"
+                elif "réservation" in type_statut:
+                    # Réservation: fond vert clair
+                    format_text = f"[{h_debut}→{h_fin}] {client_v}"
+                    color_type = "reservation"
+                else:
+                    # Location normale
+                    if duree_jours <= 1:
+                        # Location courte (même jour) : vert clair
+                        format_text = f"[{h_debut}→{h_fin}] {client_v}"
+                        color_type = "location_courte"
+                    else:
+                        # Location longue : vert foncé
+                        format_text = f"[{h_debut}→{h_fin}] {client_v}"
+                        color_type = "location_longue"
+                
+                if m_v not in suivi_jours:
+                    suivi_jours[m_v] = {}
+                
+                # Marquer les jours concernés
+                for j in array_jours:
+                    if d_debut_mv <= j <= d_fin_mv:
                         key_day = j.strftime("%d/%m")
                         if key_day not in suivi_jours[m_v]:
-                            suivi_jours[m_v][key_day] = {"depart": False, "fin": False, "client_sortant": "", "client_entrant": "", "heure_sortie": "00:00", "heure_retour": "00:00", "desc": ""}
-                        if j == d_debut_mv:
-                            suivi_jours[m_v][key_day]["depart"] = True
-                            suivi_jours[m_v][key_day]["client_sortant"] = client_v
-                            suivi_jours[m_v][key_day]["heure_sortie"] = h_deb_label
-                        if j == d_fin_mv:
-                            suivi_jours[m_v][key_day]["fin"] = True
-                            suivi_jours[m_v][key_day]["client_entrant"] = client_v
-                            suivi_jours[m_v][key_day]["heure_retour"] = h_fin_label
-                        if not (suivi_jours[m_v][key_day]["depart"] and suivi_jours[m_v][key_day]["fin"]):
-                            if "garage" in s_v or "maintenance" in s_v:
-                                suivi_jours[m_v][key_day]["desc"] = f"🛠️ {client_v}"
-                            elif "réservation" in s_v:
-                                suivi_jours[m_v][key_day]["desc"] = f"🔴 {client_v}"
-                            else:
-                                suivi_jours[m_v][key_day]["desc"] = f"🟢 {client_v}"
+                            suivi_jours[m_v][key_day] = {
+                                "texte": "",
+                                "type": ""
+                            }
+                        
+                        suivi_jours[m_v][key_day]["texte"] = format_text
+                        suivi_jours[m_v][key_day]["type"] = color_type
+            
+            # Application au DataFrame
+            for idx, row in df_final_grid.iterrows():
+                mat_extracted = row["Flotte BBNH"].split("[")[-1].replace("]", "").strip()
+                if mat_extracted in suivi_jours:
+                    for key_day, data in suivi_jours[mat_extracted].items():
+                        if key_day in df_final_grid.columns and data["texte"]:
+                            df_final_grid.at[idx, key_day] = data["texte"]
+        
+        # ============================================================
+        # FONCTION DE STYLE - DESIGN EXACT DE L'IMAGE
+        # ============================================================
+        def style_planning_bbnh(val):
+            if pd.isna(val):
+                return "background-color: #ffffff; color: #000000; font-size: 11px;"
+            
+            val_str = str(val)
+            
+            # Disponible (point noir) - fond blanc
+            if "● Disponible" in val_str:
+                return """
+                    background-color: #ffffff; 
+                    color: #000000; 
+                    font-size: 11px; 
+                    font-weight: 500;
+                    text-align: left;
+                    padding: 8px;
+                """
+            
+            # Garage/Maintenance - orange/jaune
+            elif "🛠️" in val_str or "GARAGE" in val_str:
+                return """
+                    background-color: #fef3c7; 
+                    color: #92400e; 
+                    font-weight: 600; 
+                    font-size: 11px;
+                    text-align: left;
+                    padding: 8px;
+                """
+            
+            # Réservation - vert clair (#86efac)
+            elif "●" in val_str and "[" in val_str:
+                return """
+                    background-color: #86efac; 
+                    color: #166534; 
+                    font-weight: 600; 
+                    font-size: 11px;
+                    text-align: left;
+                    padding: 8px;
+                """
+            
+            # Location courte - vert clair
+            elif "[" in val_str and "→" in val_str:
+                # Détecter si c'est une location urgente (rouge)
+                # Basé sur le nom du client ou autres critères
+                # Pour l'instant, on utilise vert clair par défaut
+                return """
+                    background-color: #86efac; 
+                    color: #166534; 
+                    font-weight: 600; 
+                    font-size: 11px;
+                    text-align: left;
+                    padding: 8px;
+                """
+            
+            # Défaut
+            return "background-color: #ffffff; color: #000000; font-size: 11px;"
+        
+        # Application du style
+        cols_ordonnees = ['Flotte BBNH'] + nom_colonnes
+        styled_df = df_final_grid[cols_ordonnees].style.applymap(style_planning_bbnh)
+        
+        # Affichage
+        st.dataframe(
+            styled_df,
+            use_container_width=True,
+            height=700,
+            hide_index=True
+        )
+        
+        # Légende
+        st.markdown("""
+        <div style='margin-top: 20px; padding: 15px; background-color: #1f2937; border-radius: 8px;'>
+            <h4 style='color: white; margin-bottom: 10px;'>📊 Légende :</h4>
+            <div style='display: flex; gap: 20px; flex-wrap: wrap;'>
+                <div style='display: flex; align-items: center; gap: 8px;'>
+                    <div style='width: 20px; height: 20px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 4px;'></div>
+                    <span style='color: white; font-size: 13px;'>● Disponible</span>
+                </div>
+                <div style='display: flex; align-items: center; gap: 8px;'>
+                    <div style='width: 20px; height: 20px; background-color: #86efac; border: 1px solid #22c55e; border-radius: 4px;'></div>
+                    <span style='color: white; font-size: 13px;'>Réservation / Location courte</span>
+                </div>
+                <div style='display: flex; align-items: center; gap: 8px;'>
+                    <div style='width: 20px; height: 20px; background-color: #22c55e; border: 1px solid #16a34a; border-radius: 4px;'></div>
+                    <span style='color: white; font-size: 13px;'>Location longue durée</span>
+                </div>
+                <div style='display: flex; align-items: center; gap: 8px;'>
+                    <div style='width: 20px; height: 20px; background-color: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px;'></div>
+                    <span style='color: white; font-size: 13px;'>🛠️ Garage / Maintenance</span>
+                </div>
+                <div style='display: flex; align-items: center; gap: 8px;'>
+                    <div style='width: 20px; height: 20px; background-color: #ef4444; border: 1px solid #dc2626; border-radius: 4px;'></div>
+                    <span style='color: white; font-size: 13px;'>Location urgente</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.info("Aucun véhicule disponible pour afficher le planning.")
 
-                # Application des statuts
-                for idx, row in df_final_grid.iterrows():
-                    mat_extracted = row["Flotte BBNH"].split("[")[-1].replace("]", "").strip()
-                    if mat_extracted in suivi_jours:
-                        for key_day, data in suivi_jours[mat_extracted].items():
-                            if key_day in df_final_grid.columns:
-                                if data["depart"] and data["fin"]:
-                                    df_final_grid.at[idx, key_day] = f"🔵 {data['client_entrant']}/{data['client_sortant']}"
-                                elif data["desc"]:
-                                    df_final_grid.at[idx, key_day] = data["desc"]
-
-            # ⚡ Style simplifié (plus rapide)
-            def style_bbnh_theme(val):
-                val_str = str(val)
-                if val_str == "●": return "background-color: #ffffff; color: #111827; font-size: 11px; font-weight: 600; text-align: center;"
-                elif "🔵" in val_str: return "background-color: #1d4ed8; color: #ffffff; font-weight: 700; font-size: 10px;"
-                elif "🛠️" in val_str: return "background-color: #eab308; color: #1e1b4b; font-weight: 700; font-size: 11px;"
-                elif "🔴" in val_str: return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
-                elif "🟢" in val_str: return "background-color: #16a34a; color: #ffffff; font-weight: 600; font-size: 11px;"
-                return "background-color: #090b0e; color: #ffffff;"
-
-            target_col_str = recherche_date.strftime("%d/%m")
-            cols_ordonnees = ['Flotte BBNH']
-            if target_col_str in nom_colonnes:
-                idx_target = nom_colonnes.index(target_col_str)
-                cols_ordonnees += nom_colonnes[max(0, idx_target - 2):min(30, idx_target + 12)]
-            else:
-                cols_ordonnees += nom_colonnes[:14]
-
-            styled_df = df_final_grid[cols_ordonnees].style
-            styled_df = style_apply(styled_df, style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH'])
-            st.dataframe(styled_df, use_container_width=True, height=800)
-
+# ============================================================
 # --- TAB 2 : CONTRATS ---
+# ============================================================
 with tab_contrats:
-    st.markdown("### 📄 Liste des Contrats & Mouvements")
+    st.markdown("###  Liste des Contrats & Mouvements")
     if not df_mouvs.empty and 'id' in df_mouvs.columns:
         df_contrats_list = df_mouvs.sort_values(by='id', ascending=False)
     else:
@@ -785,13 +901,12 @@ with tab_contrats:
         <table class="contract-table">
             <thead><tr>
                 <th>🚗 Matricule</th><th>📞 Tel</th><th>📋 N° Contrat</th>
-                <th>📅 Départ</th><th>📅 Retour</th><th>📆 Jours</th>
+                <th>📅 Départ</th><th>📅 Retour</th><th> Jours</th>
                 <th>💰 Montant</th><th>💸 Reste</th><th>🎁 Caution</th>
                 <th>🛣️ KM Sortie</th><th>🏁 KM Retour</th>
             </tr></thead><tbody>
         """]
         
-        # ⚡ Préparation des données clients pour lookup rapide
         clients_lookup = {}
         if not df_clients.empty and 'Nom' in df_clients.columns:
             for _, cli in df_clients.iterrows():
@@ -844,7 +959,9 @@ with tab_contrats:
     else:
         st.info("Aucun contrat enregistré.")
 
+# ============================================================
 # --- TAB 3 : RETOURS ---
+# ============================================================
 with tab_logistique:
     st.markdown("### 🔑 Terminal de Restitution")
     df_actifs = pd.DataFrame()
@@ -883,7 +1000,7 @@ with tab_logistique:
                     refresh_data()
                     rerun()
                 except Exception as e:
-                    st.error(f"❌ Erreur : {e}")
+                    st.error(f" Erreur : {e}")
         with col_details:
             if not res_dep.empty:
                 row_sel = res_dep.iloc[0]
@@ -893,9 +1010,11 @@ with tab_logistique:
     else:
         st.info("Aucun déplacement en cours.")
 
+# ============================================================
 # --- TAB 4 : PERFORMANCE ---
+# ============================================================
 with tab_analytics:
-    st.markdown("### 📊 Performance du Jour")
+    st.markdown("###  Performance du Jour")
     day_target = st.date_input("Journée d'analyse :", datetime.now())
     if not df_mouvs.empty:
         df_stats = df_mouvs.copy()
@@ -909,7 +1028,7 @@ with tab_analytics:
         entrees = df_stats[df_stats['Clean_F'] == day_target]
 
         k1, k2, k3 = st.columns(3)
-        with k1: st.metric("📈 DÉPARTS", f"{len(sorties)}")
+        with k1: st.metric(" DÉPARTS", f"{len(sorties)}")
         with k2: st.metric("🔑 RETOURS", f"{len(entrees)}")
         with k3: st.metric("💰 CA DU JOUR", f"{sorties['Val_Prix'].sum():,.2f} DT")
 
@@ -922,7 +1041,7 @@ with tab_analytics:
                 st.dataframe(sorties[cols], use_container_width=True, hide_index=True)
             else: st.info("Aucun départ.")
         with col_droite:
-            st.markdown("### 🛬 RETOURS")
+            st.markdown("###  RETOURS")
             if not entrees.empty:
                 entrees_c = entrees.copy()
                 entrees_c['KM Roulé'] = entrees_c['KM_Fin'] - entrees_c['KM_Debut']
@@ -930,7 +1049,9 @@ with tab_analytics:
                 st.dataframe(entrees_c[cols], use_container_width=True, hide_index=True)
             else: st.info("Aucun retour.")
 
+# ============================================================
 # --- TAB 5 : VIDANGES ---
+# ============================================================
 with tab_vidange:
     st.markdown("### 🔧 Suivi des Vidanges")
     if not df_vidanges.empty:
@@ -989,12 +1110,14 @@ with tab_vidange:
                     refresh_data()
                     rerun()
 
+# ============================================================
 # --- TAB 6 : CRM ---
+# ============================================================
 with tab_crm:
-    st.markdown("### 👥 Comptes Conducteurs")
+    st.markdown("###  Comptes Conducteurs")
     c1, c2 = st.columns([5, 4])
     with c1:
-        st.markdown("#### 🔍 Consultation")
+        st.markdown("####  Consultation")
         search_query = st.text_input("Rechercher (Nom, CIN) : ", key="crm_search_field")
         if search_query and not df_clients.empty:
             mask = (
@@ -1015,7 +1138,7 @@ with tab_crm:
                         st.session_state[f"chk_del_{unique_suffix}"] = False
 
                     with st.expander(f"👤 {safe_str(cli.get('Nom')).upper()} {safe_str(cli.get('Prénom'))} (CIN: {cin_client})", expanded=True):
-                        st.write(f"**📞 Tel :** `{cli.get('Numéro de téléphone', 'N/A')}` | **🚗 Permis :** `{cli.get('N° Permis', 'N/A')}`")
+                        st.write(f"** Tel :** `{cli.get('Numéro de téléphone', 'N/A')}` | **🚗 Permis :** `{cli.get('N° Permis', 'N/A')}`")
                         col_img1, col_img2 = st.columns(2)
                         with col_img1:
                             img_cin = cli.get('Image CIN')
@@ -1094,9 +1217,11 @@ with tab_crm:
                     refresh_data()
                     rerun()
                 else:
-                    st.error("❌ Champs obligatoires manquants")
+                    st.error(" Champs obligatoires manquants")
 
+# ============================================================
 # --- TAB 7 : ADMIN ---
+# ============================================================
 with tab_admin:
     st.markdown("### ⚙️ Panneau d'Administration")
     st.warning("⚠️ Actions irréversibles !")
