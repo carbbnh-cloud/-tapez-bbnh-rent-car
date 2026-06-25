@@ -30,7 +30,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- STYLE CSS AVANCÉ : CHARTE GRAPHIQUE BBNH ---
+# --- STYLE CSS AVANCÉ ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
@@ -39,170 +39,75 @@ html, body, [data-testid="stAppViewContainer"] {
     background-color: #0f1115 !important;
     color: #f3f4f6 !important;
 }
-
 .main .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
-
 section[data-testid="stSidebar"] {
     background-color: #07080a !important;
     border-right: 1px solid #1f242e !important;
     min-width: 450px !important;
     max-width: 450px !important;
 }
-
-div[data-testid="stSidebarUserContent"] {
-    padding: 2rem 1.5rem !important;
-}
-
 .logo-container {
-    background: #ffffff;
-    padding: 16px;
-    border-radius: 16px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
-    margin-bottom: 25px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    background: #ffffff; padding: 16px; border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    margin-bottom: 25px; display: flex; justify-content: center; align-items: center;
 }
-
-div[data-testid="stRadio"] label {
-    font-size: 15px !important;
-    font-weight: 500 !important;
-    padding: 8px 4px !important;
-}
-
 .stTabs [data-baseweb="tab-list"] {
-    gap: 8px; 
-    background-color: #161920; 
-    padding: 6px; 
-    border-radius: 14px;
-    border: 1px solid #222733;
-    margin-bottom: 25px;
+    gap: 8px; background-color: #161920; padding: 6px;
+    border-radius: 14px; border: 1px solid #222733; margin-bottom: 25px;
 }
 .stTabs [data-baseweb="tab"] {
-    padding: 10px 20px;
-    border-radius: 10px;
-    font-weight: 600;
-    color: #9ca3af;
-    transition: all 0.2s ease;
-    border: none !important;
+    padding: 10px 20px; border-radius: 10px; font-weight: 600;
+    color: #9ca3af; transition: all 0.2s ease; border: none !important;
 }
 .stTabs [data-baseweb="tab"]:hover { background-color: #222733; color: #ffffff; }
-.stTabs [aria-selected="true"] { 
-    background-color: #e60000 !important;
-    color: #ffffff !important;
+.stTabs [aria-selected="true"] {
+    background-color: #e60000 !important; color: #ffffff !important;
     box-shadow: 0 4px 15px rgba(230, 0, 0, 0.4);
 }
-
-h1 {
-    font-weight: 800 !important;
-    letter-spacing: -1px !important;
-    color: #ffffff !important;
-}
+h1 { font-weight: 800 !important; letter-spacing: -1px !important; color: #ffffff !important; }
 h3 { color: #f3f4f6; font-weight: 700 !important; letter-spacing: -0.5px; }
-
 div[data-testid="stForm"] {
     background: rgba(22, 25, 32, 0.8) !important;
-    border: 1px solid #2a3142 !important;
-    padding: 25px !important;
+    border: 1px solid #2a3142 !important; padding: 25px !important;
     border-radius: 16px !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
 }
-
-input, select, textarea, div[data-baseweb="select"] {
-    background-color: #1a1e26 !important;
-    color: #ffffff !important;
-    border: 1px solid #2a3142 !important;
-    border-radius: 10px !important;
-    font-size: 14px !important;
-}
-
 div.stButton > button {
     background: linear-gradient(135deg, #e60000 0%, #b30000 100%) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 10px !important;
-    padding: 14px 28px !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.5px;
-    font-size: 14px !important;
-    transition: all 0.2s ease;
+    color: white !important; border: none !important; border-radius: 10px !important;
+    padding: 14px 28px !important; font-weight: 700 !important;
+    font-size: 14px !important; transition: all 0.2s ease;
 }
-div.stButton > button:hover { 
-    transform: translateY(-1px); 
-    box-shadow: 0 5px 15px rgba(230, 0, 0, 0.5); 
+div.stButton > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 15px rgba(230, 0, 0, 0.5);
 }
-
-div[data-testid="stDataFrame"] {
-    border: 1px solid #222733 !important;
-    border-radius: 14px !important;
-}
-
-/* --- STYLE TABLEAU CONTRATS TYPE IMAGE --- */
 .contract-table {
-    width: 100%;
-    border-collapse: collapse;
-    background-color: #ffffff;
-    color: #333333;
-    border-radius: 8px;
-    overflow: hidden;
-    font-size: 13px;
+    width: 100%; border-collapse: collapse; background-color: #ffffff;
+    color: #333333; border-radius: 8px; overflow: hidden; font-size: 13px;
 }
 .contract-table th {
-    background-color: #f8f9fa;
-    color: #666;
-    font-weight: 600;
-    text-align: center;
-    padding: 12px 8px;
-    border-bottom: 1px solid #eee;
+    background-color: #f8f9fa; color: #666; font-weight: 600;
+    text-align: center; padding: 12px 8px; border-bottom: 1px solid #eee;
 }
 .contract-table td {
-    padding: 12px 8px;
-    border-bottom: 1px solid #eee;
-    text-align: center;
-    vertical-align: middle;
+    padding: 12px 8px; border-bottom: 1px solid #eee;
+    text-align: center; vertical-align: middle;
 }
-.car-info {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-.car-image {
-    width: 80px;
-    height: auto;
-    margin-bottom: 5px;
-}
-.car-plate {
-    font-weight: bold;
-    color: #333;
-}
-.contract-num {
-    font-weight: 800;
-    font-size: 16px;
-}
+.car-info { display: flex; flex-direction: column; align-items: center; }
+.car-image { width: 80px; height: auto; margin-bottom: 5px; }
+.car-plate { font-weight: bold; color: #333; }
+.contract-num { font-weight: 800; font-size: 16px; }
 .status-badge {
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-weight: bold;
-    font-size: 11px;
-    text-transform: uppercase;
+    padding: 4px 10px; border-radius: 20px; font-weight: bold;
+    font-size: 11px; text-transform: uppercase;
 }
 .status-paid { background-color: #e6f7ed; color: #28a745; border: 1px solid #28a745; }
 .status-pending { background-color: #fff4e6; color: #fd7e14; border: 1px solid #fd7e14; }
-
-.km-box {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    align-items: center;
-}
+.km-box { display: flex; flex-direction: column; gap: 2px; align-items: center; }
 .km-value { font-weight: bold; margin-bottom: 2px; }
 .km-indicator {
-    width: 80px;
-    padding: 2px 4px;
-    color: white;
-    font-size: 10px;
-    font-weight: bold;
-    border-radius: 3px;
+    width: 80px; padding: 2px 4px; color: white;
+    font-size: 10px; font-weight: bold; border-radius: 3px;
 }
 .km-blue { background-color: #0000ff; }
 .km-yellow { background-color: #ffff00; color: black; }
@@ -243,7 +148,7 @@ if supabase is None:
     """)
     st.stop()
 
-# Noms des tables Supabase
+# Noms des tables
 T_CLIENT = "client"
 T_VEHICULE = "vehicule"
 T_MOUVEMENT = "mouvement"
@@ -336,9 +241,9 @@ def parse_client_label(label):
         return safe_str(label), ""
 
 # ============================================================
-# ⚡ FONCTIONS DATABASE OPTIMISÉES
+# ⚡ FONCTIONS DATABASE OPTIMISÉES (CHARGEMENT PARALLÈLE)
 # ============================================================
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)  # ⚡ TTL = 10 minutes
 def get_all_tables():
     """⚡ Charge TOUTES les tables en PARALLÈLE"""
     tables = [T_VEHICULE, T_CLIENT, T_MOUVEMENT, T_VIDANGE, T_CONTRAT]
@@ -410,6 +315,7 @@ def delete_all(table_name):
         return False
 
 def upsert_vidange(matricule, marque, km_recent=0):
+    """⚡ Upsert avec requête ciblée (pas de get_all)"""
     try:
         response = supabase.table(T_VIDANGE).select("Matricule").eq("Matricule", matricule).execute()
         if response.data and len(response.data) > 0:
@@ -441,13 +347,8 @@ df_mouvs    = all_data[T_MOUVEMENT]
 df_vidanges = all_data[T_VIDANGE]
 df_contrats = all_data[T_CONTRAT]
 
-# Synchronisation des vidanges
-if not df_voitures.empty and 'Matricule' in df_voitures.columns:
-    for _, car in df_voitures.iterrows():
-        mat = safe_str(car.get('Matricule'))
-        marq = safe_str(car.get('Marque'))
-        if mat:
-            upsert_vidange(mat, marq, 0)
+# ❌ SUPPRIMÉ : la boucle lente de synchronisation au démarrage
+# Les vidanges sont synchronisées UNIQUEMENT lors d'ajout/modification
 
 # Listes pour selectbox
 def build_liste_clients():
@@ -513,7 +414,6 @@ with st.sidebar:
                 df_cli = pd.read_excel(f_clients, sheet_name='Base de Données', skiprows=1)
                 df_cli = df_cli.loc[:, ~df_cli.columns.str.contains('^Unnamed')]
                 
-                # Insertion en masse dans Supabase
                 for _, row in df_cli.iterrows():
                     client_data = {}
                     for col in df_cli.columns:
@@ -537,7 +437,6 @@ with st.sidebar:
                 df_stock = df_stock.loc[:, ~df_stock.columns.str.contains('^Unnamed')]
                 df_mouv_raw = df_mouv_raw.loc[:, ~df_mouv_raw.columns.str.contains('^Unnamed')]
                 
-                # Insertion stock
                 for _, row in df_stock.iterrows():
                     stock_data = {}
                     for col in df_stock.columns:
@@ -547,7 +446,6 @@ with st.sidebar:
                     if stock_data:
                         insert_row(T_VEHICULE, stock_data)
                 
-                # Mapping et insertion mouvements
                 mapping = {}
                 for col in df_mouv_raw.columns:
                     c_clean = str(col).strip().lower().replace("  ", "_").replace("é", "e").replace("è", "e")
@@ -1060,7 +958,7 @@ with tab_planning:
     with f_col_date_start:
         date_base = st.date_input("Date de début de la grille :", datetime(2026, 1, 1), key="grid_bbnh_date")
     with f_col_date_target:
-        recherche_date = st.date_input("📅 Aller à la date spécifique (Focus) :", datetime(2026, 6, 12))
+        recherche_date = st.date_input("📅 Aller à la date spécifique (Focus) :", datetime(2026, 6, 26))
 
     array_jours = [date_base + timedelta(days=i) for i in range(365)]
     nom_colonnes = [j.strftime("%d/%m") for j in array_jours]
@@ -1167,6 +1065,7 @@ with tab_contrats:
         df_contrats_list = df_mouvs
 
     if not df_contrats_list.empty:
+        # ⚡ Index client→téléphone pour éviter les recherches répétées
         tel_index = {}
         if not df_clients.empty and 'Nom' in df_clients.columns and 'Numéro de téléphone' in df_clients.columns:
             for _, c_row in df_clients.iterrows():
@@ -1213,13 +1112,11 @@ with tab_contrats:
                 caution_display = f"{safe_float(row.get('Caution')):,.3f}"
                 km_s = safe_int(row.get('KM_Debut'))
                 km_r = safe_int(row.get('KM_Fin'))
-                km_total = km_r - km_s if km_r > km_s else 0
 
                 km_ess_s = f"{km_s // 100} Km/Ess"
                 km_j_s = f"{km_s // 200} Km/j"
                 km_dt_s = f"{(km_s % 1000):,.3f} DT"
                 
-                km_ess_r = f"{km_r // 100} Km/Ess"
                 km_j_r = f"{km_r // 200} Km/j"
                 km_dt_r = f"{(km_r % 1000):,.3f} DT"
 
