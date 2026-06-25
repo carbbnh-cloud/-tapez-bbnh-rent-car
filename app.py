@@ -30,7 +30,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- STYLE CSS ---
+# --- STYLE CSS AVANCÉ ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
@@ -150,24 +150,21 @@ if supabase is None:
     """)
     st.stop()
 
-# Noms des tables
-T_CLIENT = "client"
-T_VEHICULE = "vehicule"
-T_MOUVEMENT = "mouvement"
-T_VIDANGE = "vidange"
-T_CONTRAT = "carbbnh"
+# Noms des tables (mêmes noms que SQLite)
+T_CLIENT = "clients"
+T_VEHICULE = "stock"
+T_MOUVEMENT = "mouvements"
+T_VIDANGE = "vidanges"
+T_CONTRAT = "contrats"
 
 # ============================================================
 # FONCTIONS UTILITAIRES
 # ============================================================
 def safe_str(val, default=""):
-    if val is None:
-        return default
-    if isinstance(val, float) and pd.isna(val):
-        return default
+    if val is None: return default
+    if isinstance(val, float) and pd.isna(val): return default
     s = str(val).strip()
-    if s.lower() in ('nan', 'none', ''):
-        return default
+    if s.lower() in ('nan', 'none', ''): return default
     return s
 
 def safe_int(val, default=0):
@@ -190,10 +187,8 @@ def safe_float(val, default=0.0):
 
 def safe_id(val, default=-1):
     try:
-        if val is None:
-            return default
-        if isinstance(val, float) and pd.isna(val):
-            return default
+        if val is None: return default
+        if isinstance(val, float) and pd.isna(val): return default
         return int(float(str(val)))
     except Exception:
         return default
@@ -223,8 +218,7 @@ def formater_heure_propre(valeur):
     return '00:00'
 
 def parse_date(val):
-    if val is None:
-        return None
+    if val is None: return None
     if isinstance(val, datetime):
         return val.date() if hasattr(val, 'date') else val
     if hasattr(val, 'date') and callable(val.date):
@@ -233,8 +227,7 @@ def parse_date(val):
         except Exception:
             pass
     s = safe_str(val)
-    if not s:
-        return None
+    if not s: return None
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"):
         try:
             return datetime.strptime(s, fmt).date()
@@ -273,7 +266,7 @@ def est_une_reservation(type_statut):
     return 'reserv' in norm or 'resa' in norm or 'booking' in norm
 
 # ============================================================
-# ⚡ FONCTIONS DATABASE OPTIMISÉES
+# ⚡ FONCTIONS DATABASE SUPABASE OPTIMISÉES
 # ============================================================
 @st.cache_data(ttl=600, show_spinner=False)
 def get_all_tables():
@@ -395,7 +388,7 @@ def transformer_reservation_en_contrat(id_mouvement):
         if not ok_update:
             return False, "Échec de mise à jour du mouvement"
         
-        # 2. Créer le contrat dans la table carbbnh
+        # 2. Créer le contrat dans la table contrats
         ref_contrat = f"BBNH-{datetime.now().strftime('%d%H%S')}-{id_mouvement}"
         
         # Récupérer le CIN du client automatiquement
@@ -471,6 +464,14 @@ liste_clients_opt = build_liste_clients()
 liste_vehicules_opt = build_liste_vehicules()
 liste_vehicules_complets_opt = build_liste_vehicules_complets()
 
+# Synchronisation des vidanges
+if not df_voitures.empty and 'Matricule' in df_voitures.columns:
+    for _, car in df_voitures.iterrows():
+        mat = safe_str(car.get('Matricule'))
+        marq = safe_str(car.get('Marque'))
+        if mat:
+            upsert_vidange(mat, marq, 0)
+
 # ============================================================
 # SIDEBAR
 # ============================================================
@@ -496,6 +497,99 @@ with st.sidebar:
     ], label_visibility="collapsed")
 
     st.markdown("<br><hr>", unsafe_allow_html=True)
+
+    with st.sidebar.expander("📥 IMPORTS EXCEL AUTOMATIQUES", expanded=False):
+        f_clients = st.file_uploader("Fichier Clients (BBNH)", type=["xlsx"])
+        if f_clients:
+            try:
+                df_cli = pd.read_excel(f_clients, sheet_name='Base de Données', skiprows=1)
+                df_cli = df_cli.loc[:, ~df_cli.columns.str.contains('^Unnamed')]
+                
+                for _, row in df_cli.iterrows():
+                    client_data = {}
+                    for col in df_cli.columns:
+                        val = row.get(col)
+                        if pd.notna(val):
+                            client_data[col] = str(val) if not isinstance(val, (int, float)) else val
+                    if client_data:
+                        insert_row(T_CLIENT, client_data)
+                
+                st.success("Données clients synchronisées !")
+                get_all_tables.clear()
+                rerun()
+            except Exception as e:
+                st.error(f"Erreur : {e}")
+
+        f_loc2 = st.file_uploader("Fichier Base LOC2", type=["xlsx"])
+        if f_loc2:
+            try:
+                df_stock = pd.read_excel(f_loc2, sheet_name='Stock')
+                df_mouv_raw = pd.read_excel(f_loc2, sheet_name='MOUVEMENTS')
+                df_stock = df_stock.loc[:, ~df_stock.columns.str.contains('^Unnamed')]
+                df_mouv_raw = df_mouv_raw.loc[:, ~df_mouv_raw.columns.str.contains('^Unnamed')]
+                
+                for _, row in df_stock.iterrows():
+                    stock_data = {}
+                    for col in df_stock.columns:
+                        val = row.get(col)
+                        if pd.notna(val):
+                            stock_data[col] = str(val) if not isinstance(val, (int, float)) else val
+                    if stock_data:
+                        insert_row(T_VEHICULE, stock_data)
+                
+                mapping = {}
+                for col in df_mouv_raw.columns:
+                    c_clean = str(col).strip().lower().replace("  ", "_").replace("é", "e").replace("è", "e")
+                    if "matri" in c_clean: mapping[col] = "Matricule"
+                    elif "type" in c_clean or "statut" in c_clean: mapping[col] = "Type_Statut"
+                    elif "deb" in c_clean and "heur" not in c_clean: mapping[col] = "Date_Debut"
+                    elif "fin" in c_clean and "heur" not in c_clean: mapping[col] = "Date_Fin"
+                    elif "heur" in c_clean and "deb" in c_clean: mapping[col] = "Heure_Debut"
+                    elif "heur" in c_clean and "fin" in c_clean: mapping[col] = "Heure_Fin"
+                    elif "client" in c_clean or "nom" in c_clean: mapping[col] = "Client"
+                    elif "prix" in c_clean or "montant" in c_clean or "total" in c_clean: mapping[col] = "Prix"
+                    elif "km_deb" in c_clean or "kilometrage_deb" in c_clean or "km_depart" in c_clean: mapping[col] = "KM_Debut"
+                    elif "km_fin" in c_clean or "kilometrage_ret" in c_clean or "km_retour" in c_clean: mapping[col] = "KM_Fin"
+                    elif "lieu" in c_clean: mapping[col] = "Lieu_Reception"
+                
+                df_mouv_raw = df_mouv_raw.rename(columns=mapping)
+                
+                for _, row in df_mouv_raw.iterrows():
+                    h_d = formater_heure_propre(row.get('Heure_Debut'))
+                    h_f = formater_heure_propre(row.get('Heure_Fin'))
+                    
+                    try: km_d = int(float(str(row.get('KM_Debut', 0)).strip().replace(' ', '')))
+                    except Exception: km_d = 0
+                    try: km_f = int(float(str(row.get('KM_Fin', 0)).strip().replace(' ', '')))
+                    except Exception: km_f = 0
+                    
+                    p_raw = row.get('Prix', 0)
+                    try: p_clean = str(float(p_raw))
+                    except Exception: p_clean = "0"
+                    
+                    mouv_data = {
+                        "Matricule": str(row.get('Matricule', 'Inconnu')),
+                        "Type_Statut": str(row.get('Type_Statut', 'Location')),
+                        "Date_Debut": str(row.get('Date_Debut', '')),
+                        "Heure_Debut": h_d,
+                        "Date_Fin": str(row.get('Date_Fin', '')),
+                        "Heure_Fin": h_f,
+                        "Client": str(row.get('Client', 'Client')),
+                        "Prix": p_clean,
+                        "Statut_Mouvement": "En cours",
+                        "Caution": "0",
+                        "Reste": p_clean,
+                        "Lieu_Reception": str(row.get('Lieu_Reception', 'Siège')),
+                        "KM_Debut": km_d,
+                        "KM_Fin": km_f
+                    }
+                    insert_row(T_MOUVEMENT, mouv_data)
+                
+                st.success("Données intégrées avec succès !")
+                get_all_tables.clear()
+                rerun()
+            except Exception as e:
+                st.error(f"Erreur : {e}")
 
 # ============================================================
 # FORMULAIRES SIDEBAR
@@ -551,10 +645,8 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
                 cin_f = cin_m
             else:
                 nom_f, cin_f = parse_client_label(client_b)
-                if nom_m:
-                    nom_f = nom_m
-                if cin_m:
-                    cin_f = cin_m
+                if nom_m: nom_f = nom_m
+                if cin_m: cin_f = cin_m
 
             if not vehicule or not vehicule.strip():
                 st.error("❌ Le véhicule est obligatoire")
@@ -906,7 +998,7 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
     st.sidebar.markdown("### 🔄 Transformer une Réservation")
     st.sidebar.info("💡 Cette action convertit une **Réservation** en **Contrat Location** officiel.")
     
-    # 🆕 DIAGNOSTIC
+    # DIAGNOSTIC
     if not df_mouvs.empty:
         total_mouvs = len(df_mouvs)
         st.sidebar.markdown(f"**📊 Total mouvements :** `{total_mouvs}`")
@@ -919,7 +1011,7 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
             statuts_uniques = df_mouvs['Statut_Mouvement'].dropna().unique().tolist()
             st.sidebar.markdown(f"**🔄 Statuts :** {', '.join([str(s) for s in statuts_uniques])}")
     
-    # 🆕 FILTRAGE TOLÉRANT avec regex
+    # FILTRAGE TOLÉRANT avec regex
     df_reservations = pd.DataFrame()
     if not df_mouvs.empty and 'Type_Statut' in df_mouvs.columns:
         mask_resa = df_mouvs['Type_Statut'].astype(str).str.contains(
@@ -935,7 +1027,7 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
         else:
             df_reservations = df_mouvs[mask_resa]
         
-        # 🆕 FALLBACK : si aucune réservation, proposer TOUS les mouvements actifs
+        # FALLBACK : si aucune réservation, proposer TOUS les mouvements actifs
         if df_reservations.empty:
             st.sidebar.warning("⚠️ Aucune réservation détectée. Affichage de TOUS les mouvements actifs.")
             if 'Statut_Mouvement' in df_mouvs.columns:
@@ -1270,7 +1362,7 @@ with tab_contrats:
         html_table += "</tbody></table>"
         st.markdown(html_table, unsafe_allow_html=True)
         
-        # 🆕 Section Actions Rapides
+        # Actions Rapides
         st.markdown("---")
         st.markdown("### ⚡ Actions Rapides")
         
