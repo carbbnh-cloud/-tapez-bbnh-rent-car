@@ -81,43 +81,6 @@ div.stButton > button:hover {
     transform: translateY(-1px);
     box-shadow: 0 5px 15px rgba(230, 0, 0, 0.5);
 }
-.contract-table {
-    width: 100%; border-collapse: collapse; background-color: #ffffff;
-    color: #333333; border-radius: 8px; overflow: hidden; font-size: 13px;
-}
-.contract-table th {
-    background-color: #f8f9fa; color: #666; font-weight: 600;
-    text-align: center; padding: 12px 8px; border-bottom: 1px solid #eee;
-}
-.contract-table td {
-    padding: 12px 8px; border-bottom: 1px solid #eee;
-    text-align: center; vertical-align: middle;
-}
-.car-info { display: flex; flex-direction: column; align-items: center; }
-.car-image { width: 80px; height: auto; margin-bottom: 5px; }
-.car-plate { font-weight: bold; color: #333; }
-.contract-num { font-weight: 800; font-size: 16px; }
-.status-badge {
-    padding: 4px 10px; border-radius: 20px; font-weight: bold;
-    font-size: 11px; text-transform: uppercase;
-}
-.status-paid { background-color: #e6f7ed; color: #28a745; border: 1px solid #28a745; }
-.status-pending { background-color: #fff4e6; color: #fd7e14; border: 1px solid #fd7e14; }
-.status-reservation { background-color: #e0e7ff; color: #4f46e5; border: 1px solid #4f46e5; }
-.status-contrat { background-color: #dcfce7; color: #166534; border: 1px solid #166534; }
-.km-box { display: flex; flex-direction: column; gap: 2px; align-items: center; }
-.km-value { font-weight: bold; margin-bottom: 2px; }
-.km-indicator {
-    width: 80px; padding: 2px 4px; color: white;
-    font-size: 10px; font-weight: bold; border-radius: 3px;
-}
-.km-blue { background-color: #0000ff; }
-.km-yellow { background-color: #ffff00; color: black; }
-.km-purple { background-color: #800080; }
-.km-black { background-color: #000000; }
-.km-green { background-color: #008000; }
-.km-red { background-color: #ff0000; }
-.km-orange { background-color: #ffa500; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -259,7 +222,6 @@ def parse_client_label(label):
         return safe_str(label), ""
 
 def normaliser_type(val):
-    """Normalise un type de statut pour comparaison tolérante"""
     try:
         s = str(val).strip().lower()
         s = s.replace('é', 'e').replace('è', 'e').replace('ê', 'e')
@@ -268,7 +230,6 @@ def normaliser_type(val):
         return ""
 
 def est_une_reservation(type_statut):
-    """Détecte si un type de statut est une réservation (tolérant)"""
     norm = normaliser_type(type_statut)
     return 'reserv' in norm or 'resa' in norm or 'booking' in norm
 
@@ -277,7 +238,6 @@ def est_une_reservation(type_statut):
 # ============================================================
 @st.cache_data(ttl=600, show_spinner=False)
 def get_all_tables():
-    """⚡ Charge TOUTES les tables en PARALLÈLE"""
     tables = [T_VEHICULE, T_CLIENT, T_MOUVEMENT, T_VIDANGE, T_CONTRAT]
     results = {}
 
@@ -370,10 +330,10 @@ def upsert_vidange(matricule, marque, km_recent=0):
         return False
 
 # ============================================================
-# 🆕 FONCTION AMÉLIORÉE : TRANSFORMER RÉSERVATION EN CONTRAT
+# 🆕 FONCTION AMÉLIORÉE : TRANSFORMER RÉSERVATION EN CONTRAT (VERSION TOLÉRANTE)
 # ============================================================
 def transformer_reservation_en_contrat(id_mouvement):
-    """Transforme un mouvement (réservation) en contrat location - Version améliorée"""
+    """Transforme un mouvement en contrat location - Version tolérante"""
     try:
         all_data = get_all_tables()
         df_mouvs = all_data[T_MOUVEMENT]
@@ -382,22 +342,22 @@ def transformer_reservation_en_contrat(id_mouvement):
         if df_mouvs.empty or 'id' not in df_mouvs.columns:
             return False, "Aucun mouvement trouvé dans la base"
         
-        # Trouver le mouvement
         row_matches = df_mouvs[df_mouvs['id'].apply(lambda x: safe_id(x)) == id_mouvement]
         if row_matches.empty:
             return False, f"Mouvement ID {id_mouvement} introuvable"
         
         row = row_matches.iloc[0]
         
-        # Vérifier que c'est bien une réservation
+        # 🆕 VÉRIFICATION TOLÉRANTE : accepter tout type de mouvement actif
         type_statut = safe_str(row.get('Type_Statut', ''))
-        if not est_une_reservation(type_statut):
-            return False, f"Ce mouvement n'est pas une réservation (type: {type_statut})"
+        statut_mouvement = safe_str(row.get('Statut_Mouvement', ''))
         
-        # 1. CRÉER D'ABORD le contrat dans la table carbbnh
+        if statut_mouvement != 'En cours':
+            return False, f"Ce mouvement n'est pas actif (statut: {statut_mouvement})"
+        
+        # 1. CRÉER le contrat dans la table carbbnh
         ref_contrat = f"BBNH-{datetime.now().strftime('%d%m%H%M')}-{id_mouvement}"
         
-        # Récupérer le CIN du client automatiquement
         cin_client = ""
         client_nom = safe_str(row.get('Client', ''))
         if not df_clients.empty and client_nom and 'Nom' in df_clients.columns:
@@ -405,7 +365,6 @@ def transformer_reservation_en_contrat(id_mouvement):
             if not match_cli.empty:
                 cin_client = safe_str(match_cli.iloc[0].get('CIN', ''))
         
-        # Calculer le tarif journalier
         prix_total = safe_float(row.get('Prix', 0))
         d_deb = parse_date(row.get('Date_Debut'))
         d_fin = parse_date(row.get('Date_Fin'))
@@ -429,13 +388,12 @@ def transformer_reservation_en_contrat(id_mouvement):
         if not ok_contrat:
             return False, "❌ Échec de création du contrat. Transformation annulée."
         
-        # 2. ENSUITE mettre à jour le mouvement : Réservation → Location
+        # 2. Mettre à jour le mouvement : → Location
         ok_update = update_row(T_MOUVEMENT, {
             "Type_Statut": "Location"
         }, "id", int(id_mouvement))
         
         if not ok_update:
-            # Rollback : supprimer le contrat créé
             delete_row(T_CONTRAT, "Num_Contrat", ref_contrat)
             return False, "❌ Échec de mise à jour du mouvement. Contrat supprimé."
         
@@ -454,7 +412,6 @@ df_mouvs    = all_data[T_MOUVEMENT]
 df_vidanges = all_data[T_VIDANGE]
 df_contrats = all_data[T_CONTRAT]
 
-# Listes pour selectbox
 def build_liste_clients():
     opts = ["-- Entrée manuelle --"]
     if not df_clients.empty and 'Nom' in df_clients.columns:
@@ -916,12 +873,25 @@ elif menu_action == "❌ Supprimer une opération":
     else:
         st.sidebar.info("Aucune opération à supprimer.")
 
-# --- 🆕 TRANSFORMER RÉSERVATION → CONTRAT (VERSION AMÉLIORÉE) ---
+# --- 🆕 TRANSFORMER RÉSERVATION → CONTRAT (VERSION CORRIGÉE TOLÉRANTE) ---
 elif menu_action == "🔄 Transformer Réservation → Contrat":
     st.sidebar.markdown("### 🔄 Transformer une Réservation en Contrat")
-    st.sidebar.info("💡 Cette action convertit une **Réservation** en **Contrat Location** officiel dans la base de données.")
+    st.sidebar.info("💡 Cette action convertit une **Réservation** en **Contrat Location** officiel.")
     
-    # Filtrage intelligent des réservations
+    # 🆕 DIAGNOSTIC : Afficher ce qui existe dans la base
+    if not df_mouvs.empty:
+        total_mouvs = len(df_mouvs)
+        st.sidebar.markdown(f"**📊 Total mouvements :** `{total_mouvs}`")
+        
+        if 'Type_Statut' in df_mouvs.columns:
+            types_uniques = df_mouvs['Type_Statut'].dropna().unique().tolist()
+            st.sidebar.markdown(f"**📋 Types présents :** {', '.join([str(t) for t in types_uniques])}")
+        
+        if 'Statut_Mouvement' in df_mouvs.columns:
+            statuts_uniques = df_mouvs['Statut_Mouvement'].dropna().unique().tolist()
+            st.sidebar.markdown(f"**🔄 Statuts :** {', '.join([str(s) for s in statuts_uniques])}")
+    
+    # 🆕 FILTRAGE TOLÉRANT avec regex
     df_reservations = pd.DataFrame()
     if not df_mouvs.empty and 'Type_Statut' in df_mouvs.columns:
         mask_resa = df_mouvs['Type_Statut'].astype(str).str.contains(
@@ -936,9 +906,17 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
             df_reservations = df_mouvs[mask_resa & mask_actif]
         else:
             df_reservations = df_mouvs[mask_resa]
+        
+        # 🆕 FALLBACK : si aucune réservation, proposer TOUS les mouvements actifs
+        if df_reservations.empty:
+            st.sidebar.warning("⚠️ Aucune réservation détectée. Affichage de TOUS les mouvements actifs.")
+            if 'Statut_Mouvement' in df_mouvs.columns:
+                df_reservations = df_mouvs[df_mouvs['Statut_Mouvement'] == 'En cours']
+            else:
+                df_reservations = df_mouvs.copy()
     
     if not df_reservations.empty and 'id' in df_reservations.columns:
-        st.sidebar.success(f"🟣 **{len(df_reservations)} réservation(s)** trouvée(s)")
+        st.sidebar.success(f"🟣 **{len(df_reservations)} mouvement(s)** trouvé(s)")
         
         liste_resa = []
         id_map_resa = {}
@@ -955,8 +933,9 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
                 cli = safe_str(r.get('Client', ''))
                 d_deb = safe_str(r.get('Date_Debut', ''))
                 d_fin = safe_str(r.get('Date_Fin', ''))
+                type_stat = safe_str(r.get('Type_Statut', ''))
                 
-                label = f"ID {real_id} | {mat} — {cli} ({d_deb} → {d_fin})"
+                label = f"ID {real_id} | {mat} — {cli} [{type_stat}] ({d_deb} → {d_fin})"
                 liste_resa.append(label)
                 id_map_resa[label] = real_id
             except Exception:
@@ -965,9 +944,9 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
         if liste_resa:
             with st.sidebar.form("form_transform_resa"):
                 resa_selectionnee = st.selectbox(
-                    "📋 Choisir la réservation à transformer : ", 
+                    "📋 Choisir le mouvement à transformer : ", 
                     liste_resa,
-                    help="Sélectionnez la réservation que vous souhaitez convertir en contrat"
+                    help="Sélectionnez le mouvement que vous souhaitez convertir en contrat"
                 )
                 
                 if resa_selectionnee:
@@ -975,16 +954,17 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
                     if id_resa >= 0:
                         row_resa = df_reservations[df_reservations['id'].apply(lambda x: safe_id(x)) == id_resa].iloc[0]
                         st.markdown("---")
-                        st.markdown("**📝 Détails de la réservation :**")
+                        st.markdown("**📝 Détails du mouvement :**")
                         st.write(f"🚗 **Véhicule :** {safe_str(row_resa.get('Matricule', 'N/A'))}")
                         st.write(f"👤 **Client :** {safe_str(row_resa.get('Client', 'N/A'))}")
+                        st.write(f"📋 **Type actuel :** {safe_str(row_resa.get('Type_Statut', 'N/A'))}")
                         st.write(f"📅 **Période :** {safe_str(row_resa.get('Date_Debut', ''))} → {safe_str(row_resa.get('Date_Fin', ''))}")
                         st.write(f"💰 **Montant :** {safe_float(row_resa.get('Prix', 0)):,.2f} DT")
                         st.markdown("---")
                 
                 confirmer_transformation = st.checkbox(
                     "⚠️ Je confirme la transformation (cette action est irréversible)",
-                    help="La réservation sera convertie en contrat location officiel"
+                    help="Le mouvement sera converti en contrat location officiel"
                 )
                 
                 if st.form_submit_button("🔄 TRANSFORMER EN CONTRAT", use_container_width=True, type="primary"):
@@ -1004,9 +984,9 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
                     else:
                         st.warning("⚠️ Veuillez cocher la case de confirmation pour continuer")
         else:
-            st.sidebar.info("📭 Aucune réservation valide à transformer.")
+            st.sidebar.info("📭 Aucun mouvement valide à transformer.")
     else:
-        st.sidebar.warning("🔴 Aucune réservation trouvée dans la base de données.")
+        st.sidebar.error("🔴 Aucun mouvement trouvé dans la base.")
         st.sidebar.info("💡 Créez d'abord une réservation via le menu **📝 Nouveau Contrat / Réservation**")
 
 # ============================================================
