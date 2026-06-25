@@ -161,13 +161,10 @@ T_CONTRAT = "carbbnh"
 # FONCTIONS UTILITAIRES
 # ============================================================
 def safe_str(val, default=""):
-    if val is None:
-        return default
-    if isinstance(val, float) and pd.isna(val):
-        return default
+    if val is None: return default
+    if isinstance(val, float) and pd.isna(val): return default
     s = str(val).strip()
-    if s.lower() in ('nan', 'none', ''):
-        return default
+    if s.lower() in ('nan', 'none', ''): return default
     return s
 
 def safe_int(val, default=0):
@@ -176,7 +173,7 @@ def safe_int(val, default=0):
             return default
         s = str(val).replace(' ', '').replace(',', '.')
         return int(float(s))
-    except Exception:
+    except:
         return default
 
 def safe_float(val, default=0.0):
@@ -185,17 +182,15 @@ def safe_float(val, default=0.0):
             return default
         s = str(val).replace(' ', '').replace(',', '.')
         return float(s)
-    except Exception:
+    except:
         return default
 
 def safe_id(val, default=-1):
     try:
-        if val is None:
-            return default
-        if isinstance(val, float) and pd.isna(val):
-            return default
+        if val is None: return default
+        if isinstance(val, float) and pd.isna(val): return default
         return int(float(str(val)))
-    except Exception:
+    except:
         return default
 
 def encoder_image_base64(file_buffer):
@@ -203,7 +198,7 @@ def encoder_image_base64(file_buffer):
         return ""
     try:
         return base64.b64encode(file_buffer.getvalue()).decode()
-    except Exception:
+    except:
         return ""
 
 def formater_heure_propre(valeur):
@@ -213,37 +208,26 @@ def formater_heure_propre(valeur):
         return valeur.strftime('%H:%M')
     val_str = safe_str(valeur, '00:00')
     if " " in val_str:
-        try:
-            val_str = val_str.split(" ")[1]
-        except Exception:
-            pass
+        try: val_str = val_str.split(" ")[1]
+        except: pass
     parts = val_str.split(":")
     if len(parts) >= 2:
         return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
     return '00:00'
 
 def parse_date(val):
-    if val is None:
-        return None
-    if isinstance(val, datetime):
-        return val.date() if hasattr(val, 'date') else val
+    if val is None: return None
+    if isinstance(val, datetime): return val.date() if hasattr(val, 'date') else val
     if hasattr(val, 'date') and callable(val.date):
-        try:
-            return val.date()
-        except Exception:
-            pass
+        try: return val.date()
+        except: pass
     s = safe_str(val)
-    if not s:
-        return None
+    if not s: return None
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"):
-        try:
-            return datetime.strptime(s, fmt).date()
-        except Exception:
-            pass
-    try:
-        return pd.to_datetime(s).date()
-    except Exception:
-        return None
+        try: return datetime.strptime(s, fmt).date()
+        except: pass
+    try: return pd.to_datetime(s).date()
+    except: return None
 
 def parse_client_label(label):
     try:
@@ -255,8 +239,6 @@ def parse_client_label(label):
             cin = parts[1].replace(")", "").strip()
             return nom_prenom, cin
         return label.strip(), ""
-    except Exception:
-        return safe_str(label), ""
 
 def normaliser_type(val):
     """Normalise un type de statut pour comparaison tolérante"""
@@ -264,7 +246,7 @@ def normaliser_type(val):
         s = str(val).strip().lower()
         s = s.replace('é', 'e').replace('è', 'e').replace('ê', 'e')
         return s
-    except Exception:
+    except:
         return ""
 
 def est_une_reservation(type_statut):
@@ -331,17 +313,16 @@ def delete_all(table_name):
     try:
         try:
             supabase.table(table_name).delete().neq("id", 0).execute()
-        except Exception:
+        except:
             try:
                 supabase.table(table_name).delete().gte("id", 0).execute()
-            except Exception:
+            except:
                 df = get_all(table_name)
                 if not df.empty and 'id' in df.columns:
                     for id_val in df['id'].tolist():
                         try:
                             supabase.table(table_name).delete().eq("id", id_val).execute()
-                        except Exception:
-                            pass
+                        except: pass
         return True
     except Exception as e:
         st.error(f"Erreur delete all ({table_name}): {e}")
@@ -551,10 +532,8 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
                 cin_f = cin_m
             else:
                 nom_f, cin_f = parse_client_label(client_b)
-                if nom_m:
-                    nom_f = nom_m
-                if cin_m:
-                    cin_f = cin_m
+                if nom_m: nom_f = nom_m
+                if cin_m: cin_f = cin_m
 
             if not vehicule or not vehicule.strip():
                 st.error("❌ Le véhicule est obligatoire")
@@ -712,11 +691,11 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
 
                     try:
                         init_time_deb = datetime.strptime(formater_heure_propre(row_init.get('Heure_Debut')), "%H:%M").time()
-                    except Exception:
+                    except:
                         init_time_deb = time(9, 0)
                     try:
                         init_time_fin = datetime.strptime(formater_heure_propre(row_init.get('Heure_Fin')), "%H:%M").time()
-                    except Exception:
+                    except:
                         init_time_fin = time(12, 0)
 
                     init_date_cin = parse_date(row_cli_init.get('Date Délivrance CIN')) or datetime.now().date()
@@ -879,7 +858,7 @@ elif menu_action == "❌ Supprimer une opération":
                 label = f"ID: {real_id} | {safe_str(r.get('Matricule', ''))} — {safe_str(r.get('Client', ''))}"
                 liste_mouv_del.append(label)
                 id_map_del[label] = real_id
-            except Exception:
+            except:
                 continue
 
         if liste_mouv_del:
@@ -958,7 +937,7 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
                 label = f"ID: {real_id} | {safe_str(r.get('Matricule', ''))} — {safe_str(r.get('Client', ''))} [{type_stat}]"
                 liste_resa.append(label)
                 id_map_resa[label] = real_id
-            except Exception:
+            except:
                 continue
         
         if liste_resa:
@@ -994,10 +973,8 @@ st.markdown("<h1>BBNH WORKSPACE AUTOMATION</h1>", unsafe_allow_html=True)
 with st.container(border=True):
     st.markdown("### 🔎 RECHERCHE AVANCÉE : VOITURES DISPONIBLES PAR PÉRIODE")
     c_search1, c_search2, c_search3 = st.columns([2, 2, 1.5])
-    with c_search1:
-        search_date_debut = st.date_input("📅 Date de Sortie : ", datetime.now(), key="adv_search_start")
-    with c_search2:
-        search_date_fin = st.date_input("📅 Date de Retour : ", datetime.now() + timedelta(days=3), key="adv_search_end")
+    with c_search1: search_date_debut = st.date_input("📅 Date de Sortie : ", datetime.now(), key="adv_search_start")
+    with c_search2: search_date_fin = st.date_input("📅 Date de Retour : ", datetime.now() + timedelta(days=3), key="adv_search_end")
     with c_search3:
         st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
         btn_recherche_dispo = st.button("🔍 Vérifier les Disponibilités", use_container_width=True)
@@ -1010,8 +987,7 @@ with st.container(border=True):
         if not df_mouvs.empty and not df_disponibles.empty and 'Matricule' in df_disponibles.columns:
             matricules_indisponibles = set()
             for _, mv in df_mouvs.iterrows():
-                if safe_str(mv.get('Statut_Mouvement')) != 'En cours':
-                    continue
+                if safe_str(mv.get('Statut_Mouvement')) != 'En cours': continue
                 d_debut_mv = parse_date(mv.get('Date_Debut'))
                 d_fin_mv = parse_date(mv.get('Date_Fin'))
                 if d_debut_mv and d_fin_mv:
@@ -1074,12 +1050,10 @@ with tab_planning:
                 mv_list = []
                 for _, mv in df_mouvs.iterrows():
                     m_v = safe_str(mv.get('Matricule'))
-                    if not m_v:
-                        continue
+                    if not m_v: continue
                     d_debut_mv = parse_date(mv.get('Date_Debut'))
                     d_fin_mv = parse_date(mv.get('Date_Fin'))
-                    if not (d_debut_mv and d_fin_mv):
-                        continue
+                    if not (d_debut_mv and d_fin_mv): continue
                     s_v = safe_str(mv.get('Type_Statut')).lower()
                     client_v = safe_str(mv.get('Client'))
                     h_deb_label = formater_heure_propre(mv.get('Heure_Debut'))
@@ -1129,18 +1103,12 @@ with tab_planning:
 
             def style_bbnh_theme(val):
                 val_str = str(val)
-                if "● Disponible" in val_str:
-                    return "background-color: #ffffff; color: #111827; font-size: 11px; font-weight: 600; text-align: center; border: 1px solid #e5e7eb;"
-                elif "🔵" in val_str:
-                    return "background-color: #1d4ed8; color: #ffffff; font-weight: 700; font-size: 10px; border: 2px solid #60a5fa;"
-                elif "🛠️" in val_str:
-                    return "background-color: #eab308; color: #1e1b4b; font-weight: 700; font-size: 11px;"
-                elif "🟣" in val_str:
-                    return "background-color: #8b5cf6; color: #ffffff; font-weight: 600; font-size: 11px;"
-                elif "🔴" in val_str:
-                    return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
-                elif "🟢" in val_str:
-                    return "background-color: #16a34a; color: #ffffff; font-weight: 600; font-size: 11px;"
+                if "● Disponible" in val_str: return "background-color: #ffffff; color: #111827; font-size: 11px; font-weight: 600; text-align: center; border: 1px solid #e5e7eb;"
+                elif "🔵" in val_str: return "background-color: #1d4ed8; color: #ffffff; font-weight: 700; font-size: 10px; border: 2px solid #60a5fa;"
+                elif "🛠️" in val_str: return "background-color: #eab308; color: #1e1b4b; font-weight: 700; font-size: 11px;"
+                elif "🟣" in val_str: return "background-color: #8b5cf6; color: #ffffff; font-weight: 600; font-size: 11px;"
+                elif "🔴" in val_str: return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
+                elif "🟢" in val_str: return "background-color: #16a34a; color: #ffffff; font-weight: 600; font-size: 11px;"
                 return "background-color: #090b0e; color: #ffffff; font-weight: 700; font-size: 12px; border-right: 3px solid #e60000;"
 
             target_col_str = recherche_date.strftime("%d/%m")
@@ -1283,12 +1251,11 @@ with tab_contrats:
                 for _, r in df_resa_count.iterrows():
                     try:
                         rid = safe_id(r.get('id'))
-                        if rid < 0:
-                            continue
+                        if rid < 0: continue
                         label = f"ID {rid} | {safe_str(r.get('Matricule'))} — {safe_str(r.get('Client'))}"
                         options_resa.append(label)
                         id_map_resa_tab[label] = rid
-                    except Exception:
+                    except:
                         continue
                 
                 if options_resa:
@@ -1340,7 +1307,7 @@ with tab_logistique:
                 label = f"ID: {real_id} | {safe_str(r.get('Matricule', ''))} — {safe_str(r.get('Client', ''))} [{type_stat}]"
                 choix_actifs.append(label)
                 id_map_retour[label] = real_id
-            except Exception:
+            except:
                 continue
 
         if choix_actifs:
@@ -1402,12 +1369,9 @@ with tab_analytics:
         entrees = df_stats[df_stats['Clean_F'] == day_target]
 
         k1, k2, k3 = st.columns(3)
-        with k1:
-            st.metric("📈 DÉPARTS CONSTATÉS", f"{len(sorties)} Véhicule(s)")
-        with k2:
-            st.metric("🔑 RETOURS ENREGISTRÉS", f"{len(entrees)} Véhicule(s)")
-        with k3:
-            st.metric("💰 CA DU JOUR (DÉPARTS)", f"{sorties['Val_Prix'].sum():,.2f} DT")
+        with k1: st.metric("📈 DÉPARTS CONSTATÉS", f"{len(sorties)} Véhicule(s)")
+        with k2: st.metric("🔑 RETOURS ENREGISTRÉS", f"{len(entrees)} Véhicule(s)")
+        with k3: st.metric("💰 CA DU JOUR (DÉPARTS)", f"{sorties['Val_Prix'].sum():,.2f} DT")
 
         st.markdown("<br><hr>", unsafe_allow_html=True)
         col_gauche, col_droite = st.columns(2)
@@ -1421,8 +1385,7 @@ with tab_analytics:
                     'Date_Fin': '📅 DATE RETOUR', 'Prix': '💰 PRIX (DT)', 'KM_Debut': '🔢 KM SORTIE'
                 })
                 st.dataframe(sorties_final, use_container_width=True, hide_index=True)
-            else:
-                st.info("Aucun véhicule n'est parti à cette date.")
+            else: st.info("Aucun véhicule n'est parti à cette date.")
         with col_droite:
             st.markdown("### 🛬 2. VOITURES RETOURNÉES (RETOURS)")
             if not entrees.empty:
@@ -1437,8 +1400,7 @@ with tab_analytics:
                     'Prix': '💰 PRIX (DT)', 'KM Roulé': '🔥 KM ROULÉ'
                 })
                 st.dataframe(entrees_final, use_container_width=True, hide_index=True)
-            else:
-                st.info("Aucun retour physique enregistré à cette date.")
+            else: st.info("Aucun retour physique enregistré à cette date.")
 
 # --- TAB 5 : VIDANGES ---
 with tab_vidange:
@@ -1465,10 +1427,8 @@ with tab_vidange:
 
         def colorer_vidanges(row):
             val_restant = row['km restant']
-            if val_restant <= 500:
-                return ['background-color: #ef4444; color: white; font-weight: bold;'] * len(row)
-            elif val_restant <= 1500:
-                return ['background-color: #f97316; color: white; font-weight: bold;'] * len(row)
+            if val_restant <= 500: return ['background-color: #ef4444; color: white; font-weight: bold;'] * len(row)
+            elif val_restant <= 1500: return ['background-color: #f97316; color: white; font-weight: bold;'] * len(row)
             return [''] * len(row)
 
         styled = df_tableau_affichage.style.apply(colorer_vidanges, axis=1)
@@ -1541,17 +1501,13 @@ with tab_crm:
                         with col_img1:
                             img_cin = cli.get('Image CIN')
                             if img_cin and not (isinstance(img_cin, float) and pd.isna(img_cin)):
-                                try:
-                                    st.image(base64.b64decode(img_cin), caption="Pièce d'identité (CIN)", use_container_width=True)
-                                except Exception:
-                                    pass
+                                try: st.image(base64.b64decode(img_cin), caption="Pièce d'identité (CIN)", use_container_width=True)
+                                except: pass
                         with col_img2:
                             img_per = cli.get('Image Permis')
                             if img_per and not (isinstance(img_per, float) and pd.isna(img_per)):
-                                try:
-                                    st.image(base64.b64decode(img_per), caption="Permis de conduire", use_container_width=True)
-                                except Exception:
-                                    pass
+                                try: st.image(base64.b64decode(img_per), caption="Permis de conduire", use_container_width=True)
+                                except: pass
 
                         st.markdown("---")
                         col_btn_mod, col_btn_sup = st.columns(2)
@@ -1597,10 +1553,8 @@ with tab_crm:
                                         "Date Délivrance CIN": e_d_cin.strftime("%Y-%m-%d"),
                                         "Date Délivrance Permis": e_d_per.strftime("%Y-%m-%d")
                                     }
-                                    if f_cin_remplace:
-                                        upd["Image CIN"] = encoder_image_base64(f_cin_remplace)
-                                    if f_per_remplace:
-                                        upd["Image Permis"] = encoder_image_base64(f_per_remplace)
+                                    if f_cin_remplace: upd["Image CIN"] = encoder_image_base64(f_cin_remplace)
+                                    if f_per_remplace: upd["Image Permis"] = encoder_image_base64(f_per_remplace)
 
                                     update_row(T_CLIENT, upd, "CIN", cin_client_actuel)
                                     st.success("✅ Profil mis à jour !")
