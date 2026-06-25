@@ -22,7 +22,6 @@ div.stButton > button { background: #e11d48 !important; color: white !important;
 div.stButton > button:hover { background: #be123c !important; transform: translateY(-1px); }
 footer {visibility: hidden;} #MainMenu {visibility: hidden;}
 
-/* PLANNING TABLE STYLE */
 .planning-table-container {
     background: #0f0f12;
     border-radius: 12px;
@@ -33,33 +32,12 @@ footer {visibility: hidden;} #MainMenu {visibility: hidden;}
     background: #18181b;
     padding: 16px 20px;
     border-bottom: 1px solid #27272a;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
 }
 .planning-title {
     font-size: 18px;
     font-weight: 700;
     color: #fafafa;
 }
-.planning-controls {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-}
-.planning-btn {
-    background: #27272a !important;
-    border: 1px solid #3f3f46 !important;
-    color: #fafafa !important;
-    padding: 6px 14px !important;
-    border-radius: 6px !important;
-    font-size: 12px !important;
-}
-.planning-btn:hover {
-    background: #3f3f46 !important;
-}
-
-/* Table */
 .planning-table-wrapper {
     overflow-x: auto;
     max-height: 700px;
@@ -117,7 +95,6 @@ footer {visibility: hidden;} #MainMenu {visibility: hidden;}
     background: #18181b;
 }
 
-/* Vehicle Info */
 .vehicle-name {
     display: flex;
     align-items: center;
@@ -135,7 +112,6 @@ footer {visibility: hidden;} #MainMenu {visibility: hidden;}
     margin-top: 2px;
 }
 
-/* Cell States */
 .cell-disponible {
     background: #ffffff;
     color: #1f2937;
@@ -153,7 +129,7 @@ footer {visibility: hidden;} #MainMenu {visibility: hidden;}
     font-size: 8px;
 }
 
-.cell-reservation {
+.cell-location {
     background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
     color: white;
     font-weight: 600;
@@ -165,12 +141,8 @@ footer {visibility: hidden;} #MainMenu {visibility: hidden;}
     gap: 4px;
     box-shadow: 0 2px 4px rgba(22, 163, 74, 0.3);
 }
-.cell-reservation::before {
-    content: '🕐';
-    font-size: 11px;
-}
 
-.cell-location {
+.cell-reservation {
     background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
     color: white;
     font-weight: 600;
@@ -181,10 +153,6 @@ footer {visibility: hidden;} #MainMenu {visibility: hidden;}
     justify-content: center;
     gap: 4px;
     box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
-}
-.cell-location::before {
-    content: '🚗';
-    font-size: 11px;
 }
 
 .cell-maintenance {
@@ -198,12 +166,7 @@ footer {visibility: hidden;} #MainMenu {visibility: hidden;}
     justify-content: center;
     gap: 4px;
 }
-.cell-maintenance::before {
-    content: '🔧';
-    font-size: 11px;
-}
 
-/* Today Column */
 .today-column {
     background: rgba(225, 29, 72, 0.1) !important;
 }
@@ -213,7 +176,6 @@ footer {visibility: hidden;} #MainMenu {visibility: hidden;}
     font-weight: 700;
 }
 
-/* Legend */
 .planning-legend {
     display: flex;
     gap: 24px;
@@ -238,8 +200,8 @@ footer {visibility: hidden;} #MainMenu {visibility: hidden;}
     font-size: 10px;
 }
 .legend-box.dispo { background: #ffffff; border: 1px solid #3f3f46; }
-.legend-box.resa { background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white; }
-.legend-box.loc { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; }
+.legend-box.loc { background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white; }
+.legend-box.resa { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; }
 .legend-box.maint { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; }
 </style>
 """, unsafe_allow_html=True)
@@ -338,7 +300,6 @@ def upsert_vidange(matricule, marque, km_recent=0):
         })
     except: return False
 
-# Load data
 df_voitures = get_all(T_VEHICULE)
 df_clients_light = get_all(T_CLIENT, exclude_heavy=True)
 df_mouvs = get_all(T_MOUVEMENT)
@@ -355,29 +316,22 @@ with st.sidebar:
     st.markdown("<p style='text-align: center; color: #71717a; font-size:12px; letter-spacing:3px; margin-bottom:20px;'>PLANNING</p>", unsafe_allow_html=True)
     st.markdown("---")
     menu_action = st.radio("Navigation", [
-        "📊 Dashboard", "🗓️ Planning", "📝 Nouveau Contrat", "🔑 Retours",
-        "🚗 Flotte", "👥 CRM", "🔧 Vidanges"
+        " Dashboard", "🗓️ Planning", "📝 Nouveau Contrat", "🔑 Retours",
+        "🚗 Flotte", " CRM", "🔧 Vidanges"
     ], label_visibility="collapsed")
 
 if menu_action == "🗓️ Planning":
     st.markdown("## 🗓️ Planning de la Flotte")
     
-    # Controls
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2 = st.columns([2, 1])
     with col1:
         date_debut = st.date_input("Date de début", datetime.now().date())
     with col2:
         nb_jours = st.selectbox("Nombre de jours", [7, 14, 21, 30], index=1)
-    with col3:
-        if st.button(" Aujourd'hui"):
-            st.session_state.today_clicked = True
-            date_debut = datetime.now().date()
     
-    # Generate dates
     array_jours = [date_debut + timedelta(days=i) for i in range(nb_jours)]
     today = datetime.now().date()
     
-    # Build HTML Table
     html = '<div class="planning-table-container">'
     html += '<div class="planning-header">'
     html += '<div class="planning-title">Planning Flotte BBNH</div>'
@@ -387,7 +341,6 @@ if menu_action == "🗓️ Planning":
     html += '<table class="planning-table"><thead><tr>'
     html += '<th>Flotte BBNH</th>'
     
-    # Date headers
     for j in array_jours:
         is_today = j == today
         day_name = j.strftime("%d/%m")
@@ -397,32 +350,27 @@ if menu_action == "🗓️ Planning":
     
     html += '</tr></thead><tbody>'
     
-    # Vehicle rows
     if not df_voitures.empty and 'Matricule' in df_voitures.columns:
         for _, car in df_voitures.iterrows():
             immat = safe_str(car.get('Matricule'))
             if not immat: continue
             
             modele = safe_str(car.get('Modèle', car.get('Marque', 'Véhicule')))
-            annee = safe_str(car.get('Année', ''))
             
-            # Determine icon based on vehicle type
             if 'IBIZA' in modele.upper(): icon = '🚗'
             elif 'PICANTO' in modele.upper(): icon = '🚙'
-            elif 'SPORTAGE' in modele.upper(): icon = '🚐'
+            elif 'SPORTAGE' in modele.upper(): icon = ''
             elif 'ARONA' in modele.upper(): icon = '🚗'
-            elif 'STONIC' in modele.upper(): icon = '🚙'
-            else: icon = '🚗'
+            elif 'STONIC' in modele.upper(): icon = ''
+            else: icon = ''
             
             html += '<tr>'
             html += f'<td><div class="vehicle-name"><span class="vehicle-icon">{icon}</span><div><div>{modele}</div><div class="vehicle-plate">[{immat}]</div></div></div></td>'
             
-            # Cells for each day
             for j in array_jours:
                 is_today = j == today
                 class_today = "today-column" if is_today else ""
                 
-                # Check if vehicle has a reservation/movement on this day
                 cell_content = '<div class="cell-disponible">Disponible</div>'
                 
                 if not df_mouvs.empty:
@@ -434,7 +382,6 @@ if menu_action == "🗓️ Planning":
                         d_fin = parse_date(mv.get('Date_Fin'))
                         if not (d_deb and d_fin): continue
                         
-                        # Check if this day is within the reservation period
                         if d_deb <= j <= d_fin:
                             h_deb = safe_str(mv.get('Heure_Debut', '00:00'))
                             h_fin = safe_str(mv.get('Heure_Fin', '00:00'))
@@ -444,9 +391,8 @@ if menu_action == "🗓️ Planning":
                             if 'maintenance' in type_statut or 'garage' in type_statut:
                                 cell_content = f'<div class="cell-maintenance">[{h_deb}→{h_fin}]</div>'
                             elif 'réservation' in type_statut:
-                                cell_content = f'<div class="cell-reservation">[{h_deb}→{h_fin}]</div>'
+                                cell_content = f'<div class="cell-reservation">[{h_deb}→{h_fin}] {client}</div>'
                             else:
-                                # Location
                                 cell_content = f'<div class="cell-location">[{h_deb}→{h_fin}] {client}</div>'
                             break
                 
@@ -457,13 +403,12 @@ if menu_action == "🗓️ Planning":
     html += '</tbody></table>'
     html += '</div>'
     
-    # Legend
     html += '''
     <div class="planning-legend">
         <div class="legend-item"><div class="legend-box dispo"></div> Disponible</div>
-        <div class="legend-item"><div class="legend-box resa">🕐</div> Réservation</div>
-        <div class="legend-item"><div class="legend-box loc">🚗</div> Location</div>
-        <div class="legend-item"><div class="legend-box maint">🔧</div> Maintenance</div>
+        <div class="legend-item"><div class="legend-box loc"></div> Location</div>
+        <div class="legend-item"><div class="legend-box resa"></div> Réservation</div>
+        <div class="legend-item"><div class="legend-box maint"></div> Maintenance</div>
     </div>
     '''
     
@@ -471,7 +416,7 @@ if menu_action == "🗓️ Planning":
     
     st.markdown(html, unsafe_allow_html=True)
 
-elif menu_action == "📊 Dashboard":
+elif menu_action == " Dashboard":
     st.markdown("# Tableau de Bord")
     c1, c2, c3 = st.columns(3)
     with c1: st.metric("Véhicules", len(df_voitures))
@@ -529,7 +474,7 @@ elif menu_action == "🔑 Retours":
         
         if st.button("✅ Valider Retour"):
             update_row(T_MOUVEMENT, {"Statut_Mouvement": "Retourné", "KM_Fin": km_fin}, "id", id_temp)
-            st.toast("Retour validé !", icon="🔑")
+            st.toast("Retour validé !", icon="")
             st.cache_data.clear()
             rerun()
 
@@ -559,7 +504,7 @@ elif menu_action == "👥 CRM":
         mask = df_clients_light['Nom'].str.contains(search, case=False, na=False)
         st.dataframe(df_clients_light[mask], use_container_width=True)
 
-elif menu_action == "🔧 Vidanges":
+elif menu_action == " Vidanges":
     st.markdown("# Vidanges")
     if not df_vidanges.empty:
         st.dataframe(df_vidanges, use_container_width=True)
