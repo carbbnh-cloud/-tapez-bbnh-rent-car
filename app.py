@@ -29,145 +29,252 @@ div[data-testid="stMetric"] { background-color: #18181b; border: 1px solid #2727
 .stTextInput input, .stNumberInput input, .stDateInput input, .stSelectbox div[data-baseweb="select"] { background-color: #18181b !important; border: 1px solid #3f3f46 !important; color: #fafafa !important; border-radius: 8px !important; }
 footer {visibility: hidden;} #MainMenu {visibility: hidden;}
 
-/* PLANNING GANTT STYLES */
-.gantt-container { 
-    background: #0f0f12; 
-    border-radius: 12px; 
-    padding: 20px; 
-    overflow-x: auto;
+/* PLANNING 365 JOURS - DESIGN ULTRA-FIN */
+.planning-wrapper {
+    background: #0f0f12;
+    border-radius: 12px;
     border: 1px solid #27272a;
+    overflow: hidden;
 }
-.gantt-header {
+.planning-header {
+    background: #18181b;
+    padding: 16px 20px;
+    border-bottom: 1px solid #27272a;
     display: flex;
-    border-bottom: 2px solid #27272a;
-    padding-bottom: 10px;
-    margin-bottom: 10px;
+    justify-content: space-between;
+    align-items: center;
+}
+.planning-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fafafa;
+    margin: 0;
+}
+.planning-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.planning-btn {
+    background: #27272a !important;
+    border: 1px solid #3f3f46 !important;
+    color: #fafafa !important;
+    padding: 6px 14px !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s !important;
+}
+.planning-btn:hover {
+    background: #3f3f46 !important;
+    border-color: #52525b !important;
+}
+.planning-btn.active {
+    background: #e11d48 !important;
+    border-color: #e11d48 !important;
+}
+
+/* Timeline Container */
+.timeline-container {
+    position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 20px 0;
+}
+.timeline-container::-webkit-scrollbar {
+    height: 8px;
+}
+.timeline-container::-webkit-scrollbar-track {
+    background: #18181b;
+}
+.timeline-container::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 4px;
+}
+
+/* Month Headers */
+.month-header {
     position: sticky;
     top: 0;
     background: #0f0f12;
     z-index: 10;
+    display: flex;
+    border-bottom: 1px solid #27272a;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
 }
-.gantt-header-cell {
-    min-width: 80px;
-    text-align: center;
+.month-label {
+    position: absolute;
+    top: 0;
+    font-size: 11px;
     font-weight: 600;
     color: #a1a1aa;
-    font-size: 12px;
-    padding: 8px 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
-.gantt-header-cell:first-child {
-    min-width: 200px;
-    text-align: left;
-    color: #fafafa;
-    font-size: 14px;
-}
-.gantt-row {
+
+/* Vehicle Rows */
+.vehicle-row {
     display: flex;
-    border-bottom: 1px solid #1f1f23;
-    min-height: 60px;
     align-items: center;
-    transition: background 0.2s;
+    height: 48px;
+    border-bottom: 1px solid #1f1f23;
+    position: relative;
+    transition: background 0.15s;
 }
-.gantt-row:hover {
+.vehicle-row:hover {
     background: rgba(255,255,255,0.02);
 }
-.gantt-cell {
-    min-width: 80px;
-    height: 50px;
+.vehicle-info {
+    position: sticky;
+    left: 0;
+    background: #0f0f12;
+    z-index: 5;
+    padding: 0 16px;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-right: 1px solid #27272a;
+}
+.vehicle-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fafafa;
+    line-height: 1.2;
+}
+.vehicle-plate {
+    font-size: 11px;
+    color: #71717a;
+    margin-top: 2px;
+}
+
+/* Day Cells */
+.day-cell {
     position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    height: 48px;
+    border-right: 1px solid #1f1f23;
+    flex-shrink: 0;
 }
-.gantt-cell:first-child {
-    min-width: 200px;
-    justify-content: flex-start;
-    padding-left: 10px;
+.day-cell.weekend {
+    background: rgba(255,255,255,0.01);
 }
-.gantt-bar {
+.day-cell.today {
+    background: rgba(225, 29, 72, 0.08);
+}
+.day-cell.today::after {
+    content: '';
     position: absolute;
-    height: 36px;
-    border-radius: 8px;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 2px;
+    background: #e11d48;
+    z-index: 3;
+}
+
+/* Reservation Bars */
+.reservation-bar {
+    position: absolute;
+    height: 32px;
+    top: 8px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    padding: 0 8px;
     font-size: 11px;
     font-weight: 600;
     color: white;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    transition: all 0.2s;
-    cursor: pointer;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding: 0 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: all 0.2s;
+    cursor: pointer;
+    z-index: 2;
 }
-.gantt-bar:hover {
-    transform: scale(1.05);
+.reservation-bar:hover {
+    transform: translateY(-2px);
     box-shadow: 0 4px 16px rgba(0,0,0,0.5);
     z-index: 100;
 }
-.gantt-bar-location { background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); }
-.gantt-bar-reservation { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
-.gantt-bar-maintenance { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
-.gantt-bar-today { 
-    border: 2px solid #e11d48;
-    background: rgba(225, 29, 72, 0.1);
+.reservation-bar.location {
+    background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
 }
-.vehicle-label {
-    font-weight: 600;
-    color: #fafafa;
-    font-size: 13px;
+.reservation-bar.reservation {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
 }
-.vehicle-plate {
-    color: #a1a1aa;
-    font-size: 11px;
-    margin-top: 2px;
+.reservation-bar.maintenance {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
 }
-.gantt-legend {
-    display: flex;
-    gap: 20px;
-    margin-top: 15px;
-    padding: 10px;
+
+/* Tooltip */
+.reservation-tooltip {
+    position: absolute;
     background: #18181b;
+    border: 1px solid #27272a;
     border-radius: 8px;
+    padding: 12px;
+    font-size: 12px;
+    color: #fafafa;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    max-width: 280px;
+}
+.reservation-bar:hover .reservation-tooltip {
+    opacity: 1;
+}
+
+/* Legend */
+.planning-legend {
+    display: flex;
+    gap: 24px;
+    padding: 16px 20px;
+    background: #18181b;
+    border-top: 1px solid #27272a;
+    font-size: 12px;
+    color: #a1a1aa;
 }
 .legend-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
-    color: #a1a1aa;
 }
-.legend-dot {
+.legend-color {
     width: 16px;
     height: 16px;
     border-radius: 4px;
 }
-.nav-buttons {
+.legend-color.location { background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); }
+.legend-color.reservation { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+.legend-color.maintenance { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+.legend-color.today { background: rgba(225, 29, 72, 0.08); border: 2px solid #e11d48; }
+
+/* Stats Bar */
+.stats-bar {
     display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
+    gap: 24px;
+    padding: 12px 20px;
+    background: #0f0f12;
+    border-bottom: 1px solid #27272a;
+    font-size: 12px;
 }
-.nav-btn {
-    background: #18181b !important;
-    border: 1px solid #27272a !important;
-    color: #fafafa !important;
-    padding: 8px 16px !important;
-    border-radius: 6px !important;
-    font-size: 13px !important;
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
-.nav-btn:hover {
-    background: #27272a !important;
-    border-color: #3f3f46 !important;
+.stat-label {
+    color: #71717a;
+    font-weight: 500;
 }
-.today-marker {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: #e11d48;
-    z-index: 5;
+.stat-value {
+    color: #fafafa;
+    font-weight: 700;
+    font-size: 14px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -313,7 +420,7 @@ with st.sidebar:
     st.markdown("<p style='text-align: center; color: #71717a; font-size:12px; letter-spacing:3px; margin-bottom:20px;'>OS V2 FAST</p>", unsafe_allow_html=True)
     st.markdown("---")
     menu_action = st.radio("Navigation", [
-        "📊 Dashboard", "🗓️ Planning", "📝 Nouveau Contrat", "🔑 Retours",
+        "📊 Dashboard", "🗓️ Planning", "📝 Nouveau Contrat", " Retours",
         "🚗 Flotte", "👥 CRM", "🔧 Vidanges", "⚙️ Admin"
     ], label_visibility="collapsed")
 
@@ -342,66 +449,111 @@ if menu_action == "📊 Dashboard":
     else: st.warning("Aucun véhicule dispo.")
 
 elif menu_action == "🗓️ Planning":
-    st.markdown("# 🗓️ Planning de la Flotte")
+    st.markdown("# 🗓️ Planning Annuel")
     
-    # Navigation temporelle
-    if 'planning_offset' not in st.session_state:
-        st.session_state.planning_offset = 0
+    # Configuration de la vue
+    if 'planning_start' not in st.session_state:
+        st.session_state.planning_start = datetime.now().date()
     
-    col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([1, 1, 1, 2])
-    with col_nav1:
-        if st.button("◀ Semaine préc.", key="nav_prev"):
-            st.session_state.planning_offset -= 7
+    # Contrôles de navigation
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([3, 1, 1])
+    with col_ctrl1:
+        planning_start = st.date_input("Date de début", st.session_state.planning_start, key="planning_date_input")
+        st.session_state.planning_start = planning_start
+    with col_ctrl2:
+        vue_mode = st.selectbox("Vue", ["Année (365j)", "Mois (30j)", "Semaine (7j)"], index=0, key="vue_mode")
+    with col_ctrl3:
+        if st.button("Aujourd'hui", key="goto_today"):
+            st.session_state.planning_start = datetime.now().date()
             rerun()
-    with col_nav2:
-        if st.button("Aujourd'hui", key="nav_today"):
-            st.session_state.planning_offset = 0
-            rerun()
-    with col_nav3:
-        if st.button("Semaine suiv. ▶", key="nav_next"):
-            st.session_state.planning_offset += 7
-            rerun()
-    with col_nav4:
-        nb_jours = st.selectbox("Afficher", [7, 14, 21, 30], index=1, format_func=lambda x: f"{x} jours")
     
-    # Calcul des dates
+    # Calcul de la période
     today = datetime.now().date()
-    date_base = today + timedelta(days=st.session_state.planning_offset)
-    array_jours = [date_base + timedelta(days=i) for i in range(nb_jours)]
+    if vue_mode == "Année (365j)":
+        nb_jours = 365
+        cell_width = 3  # 3px par jour pour que ça tienne
+    elif vue_mode == "Mois (30j)":
+        nb_jours = 30
+        cell_width = 40
+    else:
+        nb_jours = 7
+        cell_width = 120
     
-    # Construction du HTML du Gantt
-    html_gantt = '<div class="gantt-container">'
+    array_jours = [planning_start + timedelta(days=i) for i in range(nb_jours)]
     
-    # Header avec dates
-    html_gantt += '<div class="gantt-header">'
-    html_gantt += '<div class="gantt-header-cell">Véhicule</div>'
+    # Construction du HTML
+    html = '<div class="planning-wrapper">'
+    
+    # Header avec stats
+    total_reservations = 0
+    if not df_mouvs.empty:
+        for _, mv in df_mouvs.iterrows():
+            d_deb = parse_date(mv.get('Date_Debut'))
+            d_fin = parse_date(mv.get('Date_Fin'))
+            if d_deb and d_fin:
+                if d_fin >= array_jours[0] and d_deb <= array_jours[-1]:
+                    total_reservations += 1
+    
+    html += f'''
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="stat-label">Période</div>
+            <div class="stat-value">{array_jours[0].strftime("%d/%m/%Y")} → {array_jours[-1].strftime("%d/%m/%Y")}</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Réservations</div>
+            <div class="stat-value">{total_reservations}</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Véhicules</div>
+            <div class="stat-value">{len(df_voitures) if not df_voitures.empty else 0}</div>
+        </div>
+    </div>
+    '''
+    
+    # Header des mois
+    html += '<div class="timeline-container" style="max-height: 600px;">'
+    html += '<div class="month-header">'
+    html += '<div style="min-width: 180px; flex-shrink: 0;"></div>'  # Espace pour les véhicules
+    
+    current_month = None
     for j in array_jours:
-        is_today = j == today
-        day_name = j.strftime("%a").capitalize()
-        day_num = j.strftime("%d/%m")
-        style = 'color: #e11d48; font-weight: 700;' if is_today else ''
-        html_gantt += f'<div class="gantt-header-cell" style="{style}">{day_name}<br>{day_num}</div>'
-    html_gantt += '</div>'
+        month_key = j.strftime("%Y-%m")
+        if month_key != current_month:
+            current_month = month_key
+            month_name = j.strftime("%B %Y").capitalize()
+            # Calculer la position en pixels
+            days_from_start = (j - array_jours[0]).days
+            left_pos = 180 + (days_from_start * cell_width)
+            html += f'<div class="month-label" style="left: {left_pos}px;">{month_name}</div>'
     
-    # Lignes par véhicule
+    html += '</div>'
+    
+    # Lignes des véhicules
     if not df_voitures.empty and 'Matricule' in df_voitures.columns:
         for _, car in df_voitures.iterrows():
             immat = safe_str(car.get('Matricule'))
             if not immat: continue
             modele = safe_str(car.get('Modèle', car.get('Marque', 'Véhicule')))
             
-            html_gantt += '<div class="gantt-row">'
-            html_gantt += f'<div class="gantt-cell"><div><div class="vehicle-label">{modele}</div><div class="vehicle-plate">{immat}</div></div></div>'
+            html += '<div class="vehicle-row">'
+            html += f'''
+            <div class="vehicle-info">
+                <div class="vehicle-name">{modele}</div>
+                <div class="vehicle-plate">{immat}</div>
+            </div>
+            '''
             
             # Cells pour chaque jour
             for j in array_jours:
+                is_weekend = j.weekday() >= 5
                 is_today = j == today
-                cell_class = "gantt-cell"
-                if is_today:
-                    cell_class += " gantt-bar-today"
-                html_gantt += f'<div class="{cell_class}"></div>'
+                cell_class = "day-cell"
+                if is_weekend: cell_class += " weekend"
+                if is_today: cell_class += " today"
+                html += f'<div class="{cell_class}" style="width: {cell_width}px;"></div>'
             
-            # Barres de réservation (positionnées en absolu)
+            # Barres de réservation
             if not df_mouvs.empty:
                 for _, mv in df_mouvs.iterrows():
                     m_v = safe_str(mv.get('Matricule'))
@@ -411,51 +563,68 @@ elif menu_action == "🗓️ Planning":
                     d_fin = parse_date(mv.get('Date_Fin'))
                     if not (d_deb and d_fin): continue
                     
-                    # Vérifier si la réservation chevauche la période affichée
+                    # Vérifier chevauchement
                     if d_fin < array_jours[0] or d_deb > array_jours[-1]:
                         continue
                     
-                    # Calculer la position et la largeur de la barre
+                    # Calculer position
                     start_idx = max(0, (d_deb - array_jours[0]).days)
                     end_idx = min(nb_jours - 1, (d_fin - array_jours[0]).days)
                     
-                    left_pos = 200 + (start_idx * 80) + 10  # 200px pour la première colonne + offset
-                    width = ((end_idx - start_idx + 1) * 80) - 20
+                    left_pos = 180 + (start_idx * cell_width) + 2
+                    width = ((end_idx - start_idx + 1) * cell_width) - 4
                     
-                    # Déterminer le type de réservation
+                    # Type de réservation
                     type_statut = safe_str(mv.get('Type_Statut')).lower()
                     if 'maintenance' in type_statut or 'garage' in type_statut:
-                        bar_class = 'gantt-bar-maintenance'
-                        icon = '🔧'
+                        bar_class = 'maintenance'
+                        icon = ''
                     elif 'réservation' in type_statut:
-                        bar_class = 'gantt-bar-reservation'
+                        bar_class = 'reservation'
                         icon = '📅'
                     else:
-                        bar_class = 'gantt-bar-location'
+                        bar_class = 'location'
                         icon = '🚗'
                     
                     client = safe_str(mv.get('Client'))
-                    tooltip = f"{client} | {d_deb.strftime('%d/%m')} → {d_fin.strftime('%d/%m')}"
+                    prix = safe_float(mv.get('Prix'))
                     
-                    html_gantt += f'<div class="gantt-bar {bar_class}" style="left: {left_pos}px; width: {width}px;" title="{tooltip}">{icon} {client}</div>'
+                    # Tooltip
+                    tooltip_html = f'''
+                    <div class="reservation-tooltip">
+                        <strong>{icon} {client}</strong><br>
+                        📅 {d_deb.strftime("%d/%m/%Y")} → {d_fin.strftime("%d/%m/%Y")}<br>
+                        💰 {prix:,.0f} DT<br>
+                        📝 {safe_str(mv.get('Type_Statut'))}
+                    </div>
+                    '''
+                    
+                    # Barre (seulement si assez large pour afficher du texte)
+                    if width >= 40:
+                        html += f'<div class="reservation-bar {bar_class}" style="left: {left_pos}px; width: {width}px;">{icon} {client}{tooltip_html}</div>'
+                    else:
+                        # Mini barre sans texte
+                        html += f'<div class="reservation-bar {bar_class}" style="left: {left_pos}px; width: {width}px; padding: 0;">{tooltip_html}</div>'
             
-            html_gantt += '</div>'
+            html += '</div>'
     
-    html_gantt += '</div>'
+    html += '</div>'  # Fin timeline-container
     
     # Légende
-    html_gantt += '''
-    <div class="gantt-legend">
-        <div class="legend-item"><div class="legend-dot" style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);"></div>Location</div>
-        <div class="legend-item"><div class="legend-dot" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);"></div>Réservation</div>
-        <div class="legend-item"><div class="legend-dot" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);"></div>Maintenance</div>
-        <div class="legend-item"><div class="legend-dot" style="border: 2px solid #e11d48; background: rgba(225, 29, 72, 0.1);"></div>Aujourd'hui</div>
+    html += '''
+    <div class="planning-legend">
+        <div class="legend-item"><div class="legend-color location"></div>Location</div>
+        <div class="legend-item"><div class="legend-color reservation"></div>Réservation</div>
+        <div class="legend-item"><div class="legend-color maintenance"></div>Maintenance</div>
+        <div class="legend-item"><div class="legend-color today"></div>Aujourd'hui</div>
     </div>
     '''
     
-    st.markdown(html_gantt, unsafe_allow_html=True)
+    html += '</div>'  # Fin planning-wrapper
+    
+    st.markdown(html, unsafe_allow_html=True)
 
-elif menu_action == "📝 Nouveau Contrat":
+elif menu_action == " Nouveau Contrat":
     st.markdown("# Nouveau Contrat")
     with st.container(border=True):
         col_l, col_r = st.columns(2)
@@ -606,12 +775,12 @@ elif menu_action == "🔧 Vidanges":
                 st.cache_data.clear()
                 rerun()
 
-elif menu_action == "⚙️ Admin":
-    st.markdown("# ⚠️ Zone Danger")
+elif menu_action == "️ Admin":
+    st.markdown("# ️ Zone Danger")
     c1, c2 = st.columns(2)
     with c1:
         if st.button("🗑️ Purger Mouvements"):
             delete_all(T_MOUVEMENT); st.cache_data.clear(); rerun()
     with c2:
-        if st.button("🗑️ Purger Clients"):
+        if st.button("️ Purger Clients"):
             delete_all(T_CLIENT); st.cache_data.clear(); rerun()
