@@ -5,6 +5,7 @@ import os
 import base64
 from datetime import datetime, timedelta, time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- Compatibilité Streamlit (rerun) ---
 if hasattr(st, "rerun"):
@@ -226,22 +227,37 @@ def parse_date(val):
     except: return None
 
 # ============================================================
-# FONCTIONS DATABASE SUPABASE (robustes)
+# ⚡ FONCTIONS DATABASE OPTIMISÉES (CHARGEMENT PARALLÈLE)
 # ============================================================
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)  # ⚡ TTL = 10 minutes au lieu de 30s
+def get_all_tables():
+    """⚡ Charge TOUTES les tables en PARALLÈLE — 1 seul appel au lieu de 5"""
+    tables = [T_VEHICULE, T_CLIENT, T_MOUVEMENT, T_VIDANGE, T_CONTRAT]
+    results = {}
+
+    def fetch(table_name):
+        try:
+            response = supabase.table(table_name).select("*").execute()
+            return table_name, pd.DataFrame(response.data) if response.data else pd.DataFrame()
+        except Exception as e:
+            return table_name, pd.DataFrame()
+
+    # ⚡ Exécution parallèle des 5 requêtes HTTP
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(fetch, t): t for t in tables}
+        for future in as_completed(futures):
+            table_name, df = future.result()
+            results[table_name] = df
+
+    return results
+
 def get_all(table_name):
-    try:
-        response = supabase.table(table_name).select("*").execute()
-        if response.data:
-            return pd.DataFrame(response.data)
-        return pd.DataFrame()
-    except Exception as e:
-        st.warning(f"⚠️ Table '{table_name}' : {e}")
-        return pd.DataFrame()
+    """Wrapper pour compatibilité — utilise le cache global"""
+    all_data = get_all_tables()
+    return all_data.get(table_name, pd.DataFrame())
 
 def insert_row(table_name, data_dict):
     try:
-        # Nettoyer les valeurs None/NaN
         clean_data = {k: v for k, v in data_dict.items()
                      if v is not None and not (isinstance(v, float) and pd.isna(v))}
         supabase.table(table_name).insert(clean_data).execute()
@@ -270,14 +286,12 @@ def delete_row(table_name, column, value):
 
 def delete_all(table_name):
     try:
-        # Essayer plusieurs stratégies
         try:
             supabase.table(table_name).delete().neq("id", 0).execute()
         except:
             try:
                 supabase.table(table_name).delete().gte("id", 0).execute()
             except:
-                # Récupérer tous les IDs et supprimer un par un
                 df = get_all(table_name)
                 if not df.empty and 'id' in df.columns:
                     for id_val in df['id'].tolist():
@@ -290,44 +304,44 @@ def delete_all(table_name):
         return False
 
 def upsert_vidange(matricule, marque, km_recent=0):
-    """Insertion ou mise à jour d'une vidange (évite les doublons)"""
+    """⚡ Insertion ou mise à jour d'une vidange — REQUÊTE CIBLÉE (pas de get_all)"""
     try:
-        df_v = get_all(T_VIDANGE)
-        if not df_v.empty and 'Matricule' in df_v.columns:
-            existing = df_v[df_v['Matricule'].astype(str).str.strip() == str(matricule).strip()]
-            if not existing.empty:
-                # Mise à jour
-                return update_row(T_VIDANGE, {
-                    "KM_Recent": int(km_recent),
-                    "Date_Mise_A_Jour": datetime.now().strftime("%Y-%m-%d")
-                }, "Matricule", matricule)
-        # Insertion
-        return insert_row(T_VIDANGE, {
-            "Matricule": matricule, "Marque": safe_str(marque).upper(),
-            "Date_Mise_A_Jour": datetime.now().strftime("%Y-%m-%d"),
-            "Date_Dernier_Vidange": datetime.now().strftime("%Y-%m-%d"),
-            "KM_Dernier_Vidange": 0, "KM_Recent": int(km_recent)
-        })
+        # ⚡ Requête ciblée sur 1 seul matricule au lieu de charger toute la table
+        response = supabase.table(T_VIDANGE).select("Matricule").eq("Matricule", matricule).execute()
+
+        if response.data and len(response.data) > 0:
+            # Mise à jour directe
+            supabase.table(T_VIDANGE).update({
+                "KM_Recent": int(km_recent),
+                "Date_Mise_A_Jour": datetime.now().strftime("%Y-%m-%d")
+            }).eq("Matricule", matricule).execute()
+        else:
+            # Insertion directe
+            supabase.table(T_VIDANGE).insert({
+                "Matricule": matricule,
+                "Marque": safe_str(marque).upper(),
+                "Date_Mise_A_Jour": datetime.now().strftime("%Y-%m-%d"),
+                "Date_Dernier_Vidange": datetime.now().strftime("%Y-%m-%d"),
+                "KM_Dernier_Vidange": 0,
+                "KM_Recent": int(km_recent)
+            }).execute()
+        return True
     except Exception as e:
         st.warning(f"Upsert vidange échoué: {e}")
         return False
 
 # ============================================================
-# CHARGEMENT DES DONNÉES
+# ⚡ CHARGEMENT DES DONNÉES — UN SEUL APPEL PARALLÈLE
 # ============================================================
-df_voitures = get_all(T_VEHICULE)
-df_clients = get_all(T_CLIENT)
-df_mouvs = get_all(T_MOUVEMENT)
-df_vidanges = get_all(T_VIDANGE)
-df_contrats = get_all(T_CONTRAT)
+all_data = get_all_tables()
+df_voitures = all_data[T_VEHICULE]
+df_clients  = all_data[T_CLIENT]
+df_mouvs    = all_data[T_MOUVEMENT]
+df_vidanges = all_data[T_VIDANGE]
+df_contrats = all_data[T_CONTRAT]
 
-# Synchronisation des vidanges (une seule fois, sans doublon)
-if not df_voitures.empty and 'Matricule' in df_voitures.columns:
-    for _, car in df_voitures.iterrows():
-        mat = safe_str(car.get('Matricule'))
-        marq = safe_str(car.get('Marque'))
-        if mat:
-            upsert_vidange(mat, marq, 0)
+# ❌ SUPPRIMÉ : la boucle de synchronisation lente au démarrage
+# Les vidanges sont synchronisées UNIQUEMENT lors d'ajout/modification de véhicule
 
 # Listes pour selectbox
 def build_liste_clients():
@@ -437,7 +451,6 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
             img_cin_b64 = encoder_image_base64(f_cin)
             img_permis_b64 = encoder_image_base64(f_permis)
 
-            # Créer le client si manuel
             if client_b == "-- Entrée manuelle --" and cin_f:
                 insert_row(T_CLIENT, {
                     "Nom": nom_f, "CIN": cin_f,
@@ -447,7 +460,6 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
                     "Image CIN": img_cin_b64, "Image Permis": img_permis_b64
                 })
 
-            # Créer le contrat si nécessaire
             if "Contrat" in nature:
                 insert_row(T_CONTRAT, {
                     "Num_Contrat": ref, "Matricule": vehicule, "Client_Nom": nom_f, "CIN_Client": cin_f,
@@ -455,7 +467,6 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
                     "Tarif_Jour": str(prix_unitaire), "Montant_Total": str(montant_total), "Statut_Contrat": "Actif"
                 })
 
-            # Créer le mouvement
             ok_mouv = insert_row(T_MOUVEMENT, {
                 "Matricule": vehicule, "Type_Statut": text_type,
                 "Date_Debut": str_d1, "Heure_Debut": str_t1,
@@ -469,7 +480,7 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
             if ok_mouv:
                 upsert_vidange(vehicule, "", int(km_debut))
                 st.success("✅ Fiche créée avec succès !")
-                st.cache_data.clear()
+                get_all_tables.clear()  # ⚡ Invalidation ciblée
                 rerun()
             else:
                 st.error("❌ Échec de création du mouvement")
@@ -495,7 +506,7 @@ elif menu_action == "🚗 Ajouter un Véhicule à la Flotte":
                 if ok_v:
                     upsert_vidange(nouveau_matricule, nouvelle_marque, 0)
                     st.success("✅ Véhicule enregistré !")
-                    st.cache_data.clear()
+                    get_all_tables.clear()  # ⚡ Invalidation ciblée
                     rerun()
             else:
                 st.error("❌ Tous les champs obligatoires doivent être remplis")
@@ -511,7 +522,7 @@ elif menu_action == "🗑️ Supprimer un Véhicule de la Flotte":
                     delete_row(T_VEHICULE, "Matricule", matricule_pure)
                     delete_row(T_VIDANGE, "Matricule", matricule_pure)
                     st.success("✅ Véhicule retiré.")
-                    st.cache_data.clear()
+                    get_all_tables.clear()  # ⚡ Invalidation ciblée
                     rerun()
     else:
         st.sidebar.info("Aucun véhicule dans la flotte.")
@@ -599,7 +610,7 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
 
                 upsert_vidange(mod_vehicule, "", int(mod_km_deb))
                 st.success("✅ Données mises à jour !")
-                st.cache_data.clear()
+                get_all_tables.clear()  # ⚡ Invalidation ciblée
                 rerun()
             except Exception as e:
                 st.error(f"❌ Erreur : {e}")
@@ -625,7 +636,7 @@ elif menu_action == "❌ Supprimer une opération":
                     id_to_delete = int(mouv_selectionne.split(" | ")[0].replace("ID: ", "").strip())
                     delete_row(T_MOUVEMENT, "id", id_to_delete)
                     st.success("✅ Opération effacée !")
-                    st.cache_data.clear()
+                    get_all_tables.clear()  # ⚡ Invalidation ciblée
                     rerun()
     else:
         st.sidebar.info("Aucune opération à supprimer.")
@@ -696,52 +707,73 @@ with tab_planning:
     df_voitures_valides = df_voitures[df_voitures['Matricule'].notna() & (df_voitures['Matricule'].astype(str).str.strip() != '')] if not df_voitures.empty else pd.DataFrame()
 
     if not df_voitures_valides.empty:
+        # ⚡ Construction de la matrice optimisée
         build_matrix = []
+        voiture_filter = vehicule_recherche != "-- Toutes les voitures --"
         for _, car in df_voitures_valides.iterrows():
             immat = safe_str(car.get('Matricule'))
-            if vehicule_recherche != "-- Toutes les voitures --" and immat != vehicule_recherche: continue
+            if voiture_filter and immat != vehicule_recherche:
+                continue
             modele = safe_str(car.get('Modèle', car.get('Marque', 'Véhicule')))
             ligne = {"Flotte BBNH": f"🚘 {modele} — [{immat}]"}
-            for col_j in nom_colonnes: ligne[col_j] = "● Disponible"
+            for col_j in nom_colonnes:
+                ligne[col_j] = "● Disponible"
             build_matrix.append(ligne)
 
         if build_matrix:
             df_final_grid = pd.DataFrame(build_matrix)
+
+            # ⚡ Pré-calcul des plages de mouvements (évite les boucles imbriquées)
             suivi_jours = {}
             if not df_mouvs.empty:
+                # ⚡ Pré-filtrer les mouvements actifs une seule fois
+                mv_list = []
                 for _, mv in df_mouvs.iterrows():
                     m_v = safe_str(mv.get('Matricule'))
                     if not m_v: continue
+                    d_debut_mv = parse_date(mv.get('Date_Debut'))
+                    d_fin_mv = parse_date(mv.get('Date_Fin'))
+                    if not (d_debut_mv and d_fin_mv): continue
                     s_v = safe_str(mv.get('Type_Statut')).lower()
                     client_v = safe_str(mv.get('Client'))
                     h_deb_label = formater_heure_propre(mv.get('Heure_Debut'))
                     h_fin_label = formater_heure_propre(mv.get('Heure_Fin'))
-                    d_debut_mv = parse_date(mv.get('Date_Debut'))
-                    d_fin_mv = parse_date(mv.get('Date_Fin'))
-                    if not (d_debut_mv and d_fin_mv): continue
+                    mv_list.append((m_v, d_debut_mv, d_fin_mv, s_v, client_v, h_deb_label, h_fin_label))
 
-                    if m_v not in suivi_jours: suivi_jours[m_v] = {}
-                    for j in array_jours:
-                        if d_debut_mv <= j <= d_fin_mv:
-                            key_day = j.strftime("%d/%m")
-                            if key_day not in suivi_jours[m_v]:
-                                suivi_jours[m_v][key_day] = {"depart": False, "fin": False, "client_sortant": "", "client_entrant": "", "heure_sortie": "00:00", "heure_retour": "00:00", "desc": ""}
-                            if j == d_debut_mv:
-                                suivi_jours[m_v][key_day]["depart"] = True
-                                suivi_jours[m_v][key_day]["client_sortant"] = client_v
-                                suivi_jours[m_v][key_day]["heure_sortie"] = h_deb_label
-                            if j == d_fin_mv:
-                                suivi_jours[m_v][key_day]["fin"] = True
-                                suivi_jours[m_v][key_day]["client_entrant"] = client_v
-                                suivi_jours[m_v][key_day]["heure_retour"] = h_fin_label
-                            if not (suivi_jours[m_v][key_day]["depart"] and suivi_jours[m_v][key_day]["fin"]):
-                                if "garage" in s_v or "maintenance" in s_v:
-                                    suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
-                                elif "réservation" in s_v:
-                                    suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
-                                else:
-                                    suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                # ⚡ Construire suivi_jours efficacement
+                for m_v, d_debut_mv, d_fin_mv, s_v, client_v, h_deb_label, h_fin_label in mv_list:
+                    if m_v not in suivi_jours:
+                        suivi_jours[m_v] = {}
 
+                    # ⚡ Itérer seulement sur les jours couverts par le mouvement
+                    current_day = d_debut_mv
+                    while current_day <= d_fin_mv:
+                        key_day = current_day.strftime("%d/%m")
+                        if key_day not in suivi_jours[m_v]:
+                            suivi_jours[m_v][key_day] = {
+                                "depart": False, "fin": False,
+                                "client_sortant": "", "client_entrant": "",
+                                "heure_sortie": "00:00", "heure_retour": "00:00",
+                                "desc": ""
+                            }
+                        if current_day == d_debut_mv:
+                            suivi_jours[m_v][key_day]["depart"] = True
+                            suivi_jours[m_v][key_day]["client_sortant"] = client_v
+                            suivi_jours[m_v][key_day]["heure_sortie"] = h_deb_label
+                        if current_day == d_fin_mv:
+                            suivi_jours[m_v][key_day]["fin"] = True
+                            suivi_jours[m_v][key_day]["client_entrant"] = client_v
+                            suivi_jours[m_v][key_day]["heure_retour"] = h_fin_label
+                        if not (suivi_jours[m_v][key_day]["depart"] and suivi_jours[m_v][key_day]["fin"]):
+                            if "garage" in s_v or "maintenance" in s_v:
+                                suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
+                            elif "réservation" in s_v:
+                                suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                            else:
+                                suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                        current_day += timedelta(days=1)
+
+            # ⚡ Application des données à la grille
             for idx, row in df_final_grid.iterrows():
                 mat_extracted = row["Flotte BBNH"].split("[")[-1].replace("]", "").strip()
                 if mat_extracted in suivi_jours:
@@ -780,6 +812,15 @@ with tab_contrats:
         df_contrats_list = df_mouvs
 
     if not df_contrats_list.empty:
+        # ⚡ Pré-construction d'un index client→téléphone pour éviter les recherches répétées
+        tel_index = {}
+        if not df_clients.empty and 'Nom' in df_clients.columns and 'Numéro de téléphone' in df_clients.columns:
+            for _, c_row in df_clients.iterrows():
+                c_nom = safe_str(c_row.get('Nom'))
+                c_tel = c_row.get('Numéro de téléphone')
+                if c_nom and c_tel and not (isinstance(c_tel, float) and pd.isna(c_tel)):
+                    tel_index[c_nom.lower()] = str(c_tel)
+
         html_table = """
         <table class="contract-table">
             <thead><tr>
@@ -793,15 +834,7 @@ with tab_contrats:
             try:
                 matricule = safe_str(row.get('Matricule'), 'N/A')
                 client = safe_str(row.get('Client'))
-                tel = "N/A"
-                if client and not df_clients.empty and 'Nom' in df_clients.columns:
-                    df_tel = df_clients[df_clients['Nom'] == client]
-                    if df_tel.empty:
-                        df_tel = df_clients[df_clients['Nom'].str.contains(client, case=False, na=False)]
-                    if not df_tel.empty and 'Numéro de téléphone' in df_tel.columns:
-                        tel_val = df_tel.iloc[0].get('Numéro de téléphone')
-                        if tel_val and not (isinstance(tel_val, float) and pd.isna(tel_val)):
-                            tel = str(tel_val)
+                tel = tel_index.get(client.lower(), "N/A") if client else "N/A"
 
                 num_contrat = f"#{int(row.get('id', 0)):04d}" if 'id' in row.index and pd.notna(row.get('id')) else matricule
 
@@ -877,7 +910,7 @@ with tab_logistique:
                     }, "id", int(id_mouv_temp))
                     upsert_vidange(vehicule_rentre, "", int(km_fin))
                     st.success("✅ Retour validé !")
-                    st.cache_data.clear()
+                    get_all_tables.clear()  # ⚡ Invalidation ciblée
                     rerun()
                 except Exception as e:
                     st.error(f"❌ Erreur : {e}")
@@ -983,7 +1016,7 @@ with tab_vidange:
                             "Date_Mise_A_Jour": date_effective.strftime("%Y-%m-%d")
                         }, "Matricule", v_select)
                     st.success("✅ Mis à jour !")
-                    st.cache_data.clear()
+                    get_all_tables.clear()  # ⚡ Invalidation ciblée
                     rerun()
 
 # --- TAB 6 : CRM ---
@@ -1006,7 +1039,6 @@ with tab_crm:
                     cin_client = safe_str(cli.get('CIN'))
                     unique_suffix = f"{idx}_{cin_client}"
 
-                    # Initialisation session_state
                     if f"mode_edition_{unique_suffix}" not in st.session_state:
                         st.session_state[f"mode_edition_{unique_suffix}"] = False
                     if f"chk_del_{unique_suffix}" not in st.session_state:
@@ -1037,7 +1069,7 @@ with tab_crm:
                                 if check_sup:
                                     delete_row(T_CLIENT, "CIN", cin_client)
                                     st.success(f"✅ Client supprimé.")
-                                    st.cache_data.clear()
+                                    get_all_tables.clear()  # ⚡ Invalidation ciblée
                                     rerun()
                                 else:
                                     st.warning("Cochez la case de confirmation.")
@@ -1064,7 +1096,7 @@ with tab_crm:
                                     update_row(T_CLIENT, upd, "CIN", cin_client)
                                     st.success("✅ Mis à jour !")
                                     st.session_state[f"mode_edition_{unique_suffix}"] = False
-                                    st.cache_data.clear()
+                                    get_all_tables.clear()  # ⚡ Invalidation ciblée
                                     rerun()
     with c2:
         st.markdown("#### ➕ Nouveau Client")
@@ -1089,7 +1121,7 @@ with tab_crm:
                         "Image Permis": encoder_image_base64(f_per_new)
                     })
                     st.success("✅ Client créé !")
-                    st.cache_data.clear()
+                    get_all_tables.clear()  # ⚡ Invalidation ciblée
                     rerun()
                 else:
                     st.error("❌ Champs obligatoires manquants")
@@ -1104,12 +1136,12 @@ with tab_admin:
             if st.checkbox("Confirmer la purge des mouvements", key="chk_purge_mouv"):
                 delete_all(T_MOUVEMENT)
                 st.success("✅ Mouvements purgés.")
-                st.cache_data.clear()
+                get_all_tables.clear()  # ⚡ Invalidation ciblée
                 rerun()
     with col_a2:
         if st.button("🗑️ PURGER TOUS LES CLIENTS"):
             if st.checkbox("Confirmer la purge des clients", key="chk_purge_cli"):
                 delete_all(T_CLIENT)
                 st.success("✅ Clients purgés.")
-                st.cache_data.clear()
+                get_all_tables.clear()  # ⚡ Invalidation ciblée
                 rerun()
