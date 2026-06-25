@@ -118,24 +118,6 @@ div.stButton > button:hover {
 .km-green { background-color: #008000; }
 .km-red { background-color: #ff0000; }
 .km-orange { background-color: #ffa500; }
-.action-btn {
-    padding: 6px 12px !important;
-    border-radius: 6px !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
-    margin: 2px !important;
-    cursor: pointer;
-    border: none !important;
-    display: inline-block;
-}
-.action-btn-transform {
-    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
-    color: white !important;
-}
-.action-btn-modify {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
-    color: white !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -257,8 +239,20 @@ def parse_client_label(label):
             cin = parts[1].replace(")", "").strip()
             return nom_prenom, cin
         return label.strip(), ""
+
+def normaliser_type(val):
+    """Normalise un type de statut pour comparaison tolérante"""
+    try:
+        s = str(val).strip().lower()
+        s = s.replace('é', 'e').replace('è', 'e').replace('ê', 'e')
+        return s
     except:
-        return safe_str(label), ""
+        return ""
+
+def est_une_reservation(type_statut):
+    """Détecte si un type de statut est une réservation (tolérant)"""
+    norm = normaliser_type(type_statut)
+    return 'reserv' in norm or 'resa' in norm or 'booking' in norm
 
 # ============================================================
 # ⚡ FONCTIONS DATABASE OPTIMISÉES
@@ -360,13 +354,8 @@ def upsert_vidange(matricule, marque, km_recent=0):
 # 🆕 FONCTION : TRANSFORMER RÉSERVATION EN CONTRAT
 # ============================================================
 def transformer_reservation_en_contrat(id_mouvement):
-    """
-    Transforme une réservation en contrat location :
-    1. Change Type_Statut de "Réservation" → "Location"
-    2. Crée une entrée dans la table carbbnh (contrats)
-    """
+    """Transforme un mouvement en contrat location"""
     try:
-        # Récupérer le mouvement
         all_data = get_all_tables()
         df_mouvs = all_data[T_MOUVEMENT]
         
@@ -379,12 +368,7 @@ def transformer_reservation_en_contrat(id_mouvement):
         
         row = row_matches.iloc[0]
         
-        # Vérifier que c'est bien une réservation
-        type_statut = safe_str(row.get('Type_Statut', '')).lower()
-        if type_statut not in ['réservation', 'reservation']:
-            return False, "Ce mouvement n'est pas une réservation"
-        
-        # 1. Mettre à jour le mouvement : Réservation → Location
+        # 1. Mettre à jour le mouvement : → Location
         ok_update = update_row(T_MOUVEMENT, {
             "Type_Statut": "Location"
         }, "id", int(id_mouvement))
@@ -395,11 +379,20 @@ def transformer_reservation_en_contrat(id_mouvement):
         # 2. Créer le contrat dans la table carbbnh
         ref_contrat = f"BBNH-{datetime.now().strftime('%d%H%S')}-{id_mouvement}"
         
+        # Récupérer le CIN du client automatiquement
+        cin_client = ""
+        client_nom = safe_str(row.get('Client', ''))
+        df_clients = all_data[T_CLIENT]
+        if not df_clients.empty and client_nom and 'Nom' in df_clients.columns:
+            match_cli = df_clients[df_clients['Nom'].astype(str).str.strip() == client_nom.strip()]
+            if not match_cli.empty:
+                cin_client = safe_str(match_cli.iloc[0].get('CIN', ''))
+        
         ok_contrat = insert_row(T_CONTRAT, {
             "Num_Contrat": ref_contrat,
             "Matricule": safe_str(row.get('Matricule', '')),
-            "Client_Nom": safe_str(row.get('Client', '')),
-            "CIN_Client": "",
+            "Client_Nom": client_nom,
+            "CIN_Client": cin_client,
             "Date_Debut": safe_str(row.get('Date_Debut', '')),
             "Heure_Debut": safe_str(row.get('Heure_Debut', '')),
             "Date_Fin": safe_str(row.get('Date_Fin', '')),
@@ -412,7 +405,7 @@ def transformer_reservation_en_contrat(id_mouvement):
         if not ok_contrat:
             return False, "Mouvement mis à jour mais échec création contrat"
         
-        return True, f"✅ Réservation transformée en contrat {ref_contrat}"
+        return True, f"✅ Transformé en contrat {ref_contrat}"
         
     except Exception as e:
         return False, f"Erreur : {e}"
@@ -583,11 +576,8 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
                 if ok_mouv:
                     upsert_vidange(vehicule, "", int(km_debut))
                     st.success(f"✅ Fiche créée avec succès ! (Type: **{text_type}**)")
-                    
-                    # 🆕 Si c'est une réservation, proposer la transformation
-                    if text_type.lower() in ['réservation', 'reservation']:
+                    if est_une_reservation(text_type):
                         st.info("💡 Vous pouvez transformer cette réservation en contrat via le menu **🔄 Transformer Réservation → Contrat**")
-                    
                     get_all_tables.clear()
                     rerun()
                 else:
@@ -895,15 +885,42 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
     st.sidebar.markdown("### 🔄 Transformer une Réservation")
     st.sidebar.info("💡 Cette action convertit une **Réservation** en **Contrat Location** officiel.")
     
-    # Filtrer uniquement les réservations en cours
-    df_reservations = pd.DataFrame()
+    # 🆕 DIAGNOSTIC
     if not df_mouvs.empty:
-        mask_resa = df_mouvs['Type_Statut'].astype(str).str.lower().isin(['réservation', 'reservation'])
+        total_mouvs = len(df_mouvs)
+        st.sidebar.markdown(f"**📊 Total mouvements :** `{total_mouvs}`")
+        
+        if 'Type_Statut' in df_mouvs.columns:
+            types_uniques = df_mouvs['Type_Statut'].dropna().unique().tolist()
+            st.sidebar.markdown(f"**📋 Types présents :** {', '.join([str(t) for t in types_uniques])}")
+        
+        if 'Statut_Mouvement' in df_mouvs.columns:
+            statuts_uniques = df_mouvs['Statut_Mouvement'].dropna().unique().tolist()
+            st.sidebar.markdown(f"**🔄 Statuts :** {', '.join([str(s) for s in statuts_uniques])}")
+    
+    # 🆕 FILTRAGE TOLÉRANT avec regex
+    df_reservations = pd.DataFrame()
+    if not df_mouvs.empty and 'Type_Statut' in df_mouvs.columns:
+        mask_resa = df_mouvs['Type_Statut'].astype(str).str.contains(
+            'reserv|resa|booking', 
+            case=False, 
+            na=False, 
+            regex=True
+        )
+        
         if 'Statut_Mouvement' in df_mouvs.columns:
             mask_actif = df_mouvs['Statut_Mouvement'] == 'En cours'
             df_reservations = df_mouvs[mask_resa & mask_actif]
         else:
             df_reservations = df_mouvs[mask_resa]
+        
+        # 🆕 FALLBACK : si aucune réservation, proposer TOUS les mouvements actifs
+        if df_reservations.empty:
+            st.sidebar.warning("⚠️ Aucune réservation détectée. Affichage de TOUS les mouvements actifs.")
+            if 'Statut_Mouvement' in df_mouvs.columns:
+                df_reservations = df_mouvs[df_mouvs['Statut_Mouvement'] == 'En cours']
+            else:
+                df_reservations = df_mouvs.copy()
     
     if not df_reservations.empty and 'id' in df_reservations.columns:
         liste_resa = []
@@ -916,14 +933,15 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
                 real_id = safe_id(raw_id)
                 if real_id < 0:
                     continue
-                label = f"ID: {real_id} | {safe_str(r.get('Matricule', ''))} — {safe_str(r.get('Client', ''))}"
+                type_stat = safe_str(r.get('Type_Statut', ''))
+                label = f"ID: {real_id} | {safe_str(r.get('Matricule', ''))} — {safe_str(r.get('Client', ''))} [{type_stat}]"
                 liste_resa.append(label)
                 id_map_resa[label] = real_id
             except:
                 continue
         
         if liste_resa:
-            resa_selectionnee = st.sidebar.selectbox("Choisir la réservation à transformer : ", liste_resa)
+            resa_selectionnee = st.sidebar.selectbox("Choisir le mouvement à transformer : ", liste_resa)
             confirmer_transformation = st.checkbox("⚠️ Confirmer la transformation (irréversible)")
             
             if st.sidebar.button("🔄 TRANSFORMER EN CONTRAT", use_container_width=True):
@@ -942,9 +960,9 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
                 else:
                     st.sidebar.warning("⚠️ Veuillez cocher la case de confirmation")
         else:
-            st.sidebar.info("📭 Aucune réservation en cours à transformer.")
+            st.sidebar.info("📭 Aucun mouvement à transformer.")
     else:
-        st.sidebar.info("📭 Aucune réservation trouvée dans la base.")
+        st.sidebar.error("🔴 Aucun mouvement trouvé dans la base.")
 
 # ============================================================
 # ESPACE CENTRAL
@@ -1103,14 +1121,14 @@ with tab_planning:
             styled_df = style_apply(styled_df, style_bbnh_theme, subset=[c for c in cols_ordonnees if c != 'Flotte BBNH'])
             st.dataframe(styled_df, use_container_width=True, height=800)
 
-# --- TAB 2 : LISTE DE CONTRAT (avec actions) ---
+# --- TAB 2 : LISTE DE CONTRAT ---
 with tab_contrats:
     st.markdown("### 📄 Liste Détaillée des Contrats & Mouvements")
     
-    # 🆕 Compteur de réservations à transformer
+    # Compteur de réservations
     df_resa_count = pd.DataFrame()
     if not df_mouvs.empty and 'Type_Statut' in df_mouvs.columns:
-        mask_resa = df_mouvs['Type_Statut'].astype(str).str.lower().isin(['réservation', 'reservation'])
+        mask_resa = df_mouvs['Type_Statut'].astype(str).str.contains('reserv|resa|booking', case=False, na=False, regex=True)
         if 'Statut_Mouvement' in df_mouvs.columns:
             mask_actif = df_mouvs['Statut_Mouvement'] == 'En cours'
             df_resa_count = df_mouvs[mask_resa & mask_actif]
@@ -1141,7 +1159,6 @@ with tab_contrats:
                 <th>D.Départ</th><th>D.Retour</th><th>Jours</th>
                 <th>Montant TTC(DT)</th><th>Reste(DT)</th>
                 <th>KM Sortie</th><th>KM Retour</th>
-                <th>Actions</th>
             </tr></thead><tbody>
         """
         
@@ -1151,13 +1168,9 @@ with tab_contrats:
                 client = safe_str(row.get('Client'))
                 tel = tel_index.get(client.lower(), "N/A") if client else "N/A"
                 
-                # 🆕 Déterminer le type (Réservation ou Contrat)
                 type_statut = safe_str(row.get('Type_Statut', '')).lower()
-                is_reservation = type_statut in ['réservation', 'reservation']
-                statut_mouv = safe_str(row.get('Statut_Mouvement', ''))
-                is_actif = statut_mouv == 'En cours'
+                is_reservation = est_une_reservation(type_statut)
                 
-                # Badge type
                 if is_reservation:
                     type_badge = '<span class="status-badge status-reservation">🟣 RÉSERVATION</span>'
                 else:
@@ -1166,10 +1179,8 @@ with tab_contrats:
                 raw_id = row.get('id')
                 if pd.notna(raw_id):
                     num_contrat = f"{int(float(str(raw_id)))}"
-                    real_id = int(float(str(raw_id)))
                 else:
                     num_contrat = matricule
-                    real_id = -1
 
                 d_dep_dt = parse_date(row.get('Date_Debut')) or datetime.now().date()
                 d_ret_dt = parse_date(row.get('Date_Fin')) or datetime.now().date()
@@ -1189,42 +1200,7 @@ with tab_contrats:
 
                 km_ess_s = f"{km_s // 100} Km/Ess"
                 km_j_s = f"{km_s // 200} Km/j"
-                km_dt_s = f"{(km_s % 1000):,.3f} DT"
-                
                 km_j_r = f"{km_r // 200} Km/j"
-                km_dt_r = f"{(km_r % 1000):,.3f} DT"
-
-                # 🆕 Boutons d'action (uniquement pour réservations en cours)
-                actions_html = ""
-                if is_reservation and is_actif and real_id > 0:
-                    actions_html = f"""
-                        <div style="display:flex; flex-direction:column; gap:4px;">
-                            <form method="dialog" style="margin:0;">
-                                <button class="action-btn action-btn-transform" 
-                                        onclick="window.location.href='?transform={real_id}';"
-                                        title="Transformer en contrat">
-                                    🔄 → Contrat
-                                </button>
-                            </form>
-                            <button class="action-btn action-btn-modify" 
-                                    onclick="window.location.href='?modify={real_id}';"
-                                    title="Modifier la réservation">
-                                ✏️ Modifier
-                            </button>
-                        </div>
-                    """
-                elif is_actif and real_id > 0:
-                    actions_html = f"""
-                        <div>
-                            <button class="action-btn action-btn-modify" 
-                                    onclick="window.location.href='?modify={real_id}';"
-                                    title="Modifier">
-                                ✏️ Modifier
-                            </button>
-                        </div>
-                    """
-                else:
-                    actions_html = '<span style="color:#999; font-size:10px;">Clôturé</span>'
 
                 html_table += f"""
                     <tr>
@@ -1255,7 +1231,6 @@ with tab_contrats:
                                 <div class="km-indicator km-green">{km_j_r}</div>
                             </div>
                         </td>
-                        <td>{actions_html}</td>
                     </tr>
                 """
             except Exception:
@@ -1263,14 +1238,13 @@ with tab_contrats:
         html_table += "</tbody></table>"
         st.markdown(html_table, unsafe_allow_html=True)
         
-        # 🆕 Gestion des actions via query params
+        # 🆕 Section Actions Rapides
         st.markdown("---")
         st.markdown("### ⚡ Actions Rapides")
         
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("**🔄 Transformer une réservation en contrat :**")
-            # Lister les réservations en cours
             if not df_resa_count.empty and 'id' in df_resa_count.columns:
                 options_resa = []
                 id_map_resa_tab = {}
