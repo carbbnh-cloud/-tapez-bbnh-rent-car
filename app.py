@@ -4,10 +4,13 @@ from supabase import create_client, Client
 import os
 import base64
 from datetime import datetime, timedelta, time
+import streamlit as st
+from supabase import create_client, Client
 
-# --- CONFIGURATION SUPABASE ---
-SUPABASE_URL = "VOTRE_SUPABASE_URL"
-SUPABASE_KEY = "VOTRE_SUPABASE_ANON_KEY"
+# --- CONFIGURATION SUPABASE SÉCURISÉE ---
+# Récupère les clés depuis les secrets Streamlit (Cloud ou local)
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 # Initialisation du client Supabase
 @st.cache_resource
