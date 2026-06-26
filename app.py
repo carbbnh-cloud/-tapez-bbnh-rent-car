@@ -128,6 +128,31 @@ div.stButton > button:hover {
     border-radius: 5px;
 }
 
+/* 🆕 LOGIN PAGE STYLES */
+.login-container {
+    max-width: 450px;
+    margin: 0 auto;
+    padding: 40px;
+    background: linear-gradient(135deg, #161920 0%, #0f1115 100%);
+    border: 1px solid #2a3142;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.login-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+.login-header h1 {
+    color: #e60000 !important;
+    font-size: 32px !important;
+    margin-bottom: 10px;
+}
+.login-header p {
+    color: #9ca3af;
+    font-size: 14px;
+    letter-spacing: 2px;
+}
+
 /* 🆕 MEDIA QUERIES MOBILE - SIDEBAR COMPACTE */
 @media (max-width: 768px) {
     input, select, textarea { font-size: 16px !important; }
@@ -193,9 +218,133 @@ div.stButton > button:hover {
     div[data-testid="stMetric"] { padding: 10px !important; }
     div[data-testid="stMetricLabel"] { font-size: 13px !important; }
     div[data-testid="stMetricValue"] { font-size: 20px !important; }
+    
+    .login-container {
+        padding: 25px;
+        margin: 20px;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ============================================================
+# 🔐 SYSTÈME D'AUTHENTIFICATION
+# ============================================================
+
+# Base de données des utilisateurs (vous pouvez modifier ces identifiants)
+UTILISATEURS = {
+    "admin": {
+        "password": "admin123",
+        "nom": "Administrateur",
+        "role": "Admin"
+    },
+    "manager": {
+        "password": "manager2026",
+        "nom": "Manager",
+        "role": "Manager"
+    },
+    "user": {
+        "password": "user2026",
+        "nom": "Utilisateur",
+        "role": "User"
+    }
+}
+
+# Initialiser l'état de connexion
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user_info" not in st.session_state:
+    st.session_state.user_info = None
+if "login_attempts" not in st.session_state:
+    st.session_state.login_attempts = 0
+
+def login_form():
+    """Affiche le formulaire de connexion"""
+    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    
+    # Logo et en-tête
+    logo_path = "IMG_7149 (1).jpeg"
+    if os.path.exists(logo_path):
+        st.markdown('<div class="login-header">', unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.image(logo_path, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div class="login-header">
+            <h1>🏎️ BBNH</h1>
+            <p>RENT A CAR</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Formulaire de connexion
+    with st.form("login_form"):
+        st.markdown("### 🔐 Connexion à votre espace")
+        
+        username = st.text_input("👤 Nom d'utilisateur", placeholder="Entrez votre identifiant")
+        password = st.text_input("🔒 Mot de passe", type="password", placeholder="Entrez votre mot de passe")
+        
+        st.markdown("")
+        submit_button = st.form_submit_button("🚀 SE CONNECTER", use_container_width=True, type="primary")
+        
+        if submit_button:
+            if not username or not password:
+                st.error("❌ Veuillez remplir tous les champs")
+            elif username in UTILISATEURS:
+                if UTILISATEURS[username]["password"] == password:
+                    st.session_state.logged_in = True
+                    st.session_state.user_info = {
+                        "username": username,
+                        "nom": UTILISATEURS[username]["nom"],
+                        "role": UTILISATEURS[username]["role"]
+                    }
+                    st.session_state.login_attempts = 0
+                    st.success(f"✅ Bienvenue {UTILISATEURS[username]['nom']} !")
+                    st.balloons()
+                    rerun()
+                else:
+                    st.session_state.login_attempts += 1
+                    st.error(f"❌ Mot de passe incorrect. Tentative {st.session_state.login_attempts}/3")
+                    if st.session_state.login_attempts >= 3:
+                        st.warning("⚠️ Trop de tentatives échouées. Veuillez réessayer dans quelques instants.")
+            else:
+                st.session_state.login_attempts += 1
+                st.error(f"❌ Utilisateur inconnu. Tentative {st.session_state.login_attempts}/3")
+    
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center; color: #6b7280; font-size: 12px; margin-top: 20px;">
+        <p>🔒 Connexion sécurisée | BBNH OS v2.0</p>
+        <p>Identifiants de démonstration : <strong>admin / admin123</strong></p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+def logout():
+    """Déconnecte l'utilisateur"""
+    st.session_state.logged_in = False
+    st.session_state.user_info = None
+    st.session_state.login_attempts = 0
+    rerun()
+
+# Vérifier si l'utilisateur est connecté
+if not st.session_state.logged_in:
+    # Afficher uniquement le formulaire de connexion
+    login_form()
+    st.stop()  # Arrêter l'exécution du reste du code
+
+# Si connecté, afficher un message de bienvenue dans la sidebar
+with st.sidebar:
+    if st.session_state.user_info:
+        st.success(f"👋 Bienvenue **{st.session_state.user_info['nom']}**")
+        st.caption(f"🎭 Rôle : {st.session_state.user_info['role']}")
+        if st.button("🚪 DÉCONNEXION", use_container_width=True):
+            logout()
+        st.markdown("---")
 
 # ============================================================
 # CONFIGURATION SUPABASE
