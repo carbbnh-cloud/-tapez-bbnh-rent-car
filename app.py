@@ -1255,36 +1255,72 @@ with tab_visite_tech:
                 count_saved = 0
                 count_created = 0
                 errors = []
-                
-                for idx, row in edited_df.iterrows():
-                    mat = row["🔢 Matricule"]
-                    voiture = row["🚗 Voiture"]
-                    date_prem = row["📅 Première Visite"]
-                    date_proch = row["📅 Prochaine Visite"]
-                    
-                    # Ignorer si aucune date n'est remplie
-                    if pd.isna(date_prem) and pd.isna(date_proch):
-                        continue
-                    
-                    # Préparer les données
-                    data_dict = {
-                        "Matricule": mat,
-                        "Marque": voiture.upper(),
-                        "Date_Mise_A_Jour": datetime.now().strftime("%Y-%m-%d"),
-                        "Statut": "Active"
-                    }
-                    
-                    if pd.notna(date_prem):
-                        if isinstance(date_prem, datetime):
-                            data_dict["Date_Premiere_Visite"] = date_prem.strftime("%Y-%m-%d")
-                        else:
-                            data_dict["Date_Premiere_Visite"] = date_prem.strftime("%Y-%m-%d")
-                    
-                    if pd.notna(date_proch):
-                        if isinstance(date_proch, datetime):
-                            data_dict["Date_Prochaine_Visite"] = date_proch.strftime("%Y-%m-%d")
-                        else:
-                            data_dict["Date_Prochaine_Visite"] = date_proch.strftime("%Y-%m-%d")
+                # 🆕 FONCTION UTILITAIRE POUR FORMATER LES DATES (GÈRE TOUS LES CAS)
+def formater_date_pour_db(date_val):
+    """Convertit n'importe quel type de date en string YYYY-MM-DD pour la DB"""
+    if date_val is None:
+        return None
+    if isinstance(date_val, float) and pd.isna(date_val):
+        return None
+    if pd.isna(date_val):
+        return None
+    
+    # Cas 1: datetime.datetime
+    if isinstance(date_val, datetime):
+        return date_val.strftime("%Y-%m-%d")
+    
+    # Cas 2: datetime.date (ce que retourne st.data_editor)
+    if hasattr(date_val, 'strftime'):
+        return date_val.strftime("%Y-%m-%d")
+    
+    # Cas 3: pandas Timestamp
+    if hasattr(date_val, 'date'):
+        try:
+            return date_val.date().strftime("%Y-%m-%d")
+        except:
+            pass
+    
+    # Cas 4: string déjà formaté
+    if isinstance(date_val, str):
+        date_val = date_val.strip()
+        # Vérifier si c'est déjà au bon format
+        if len(date_val) == 10 and date_val[4] == '-' and date_val[7] == '-':
+            return date_val
+        # Essayer de parser
+        parsed = parse_date(date_val)
+        if parsed:
+            return parsed.strftime("%Y-%m-%d")
+    
+    return None
+
+# 🆕 BOUCLE DE SAUVEGARDE CORRIGÉE
+for idx, row in edited_df.iterrows():
+    mat = row["🔢 Matricule"]
+    voiture = row["🚗 Voiture"]
+    date_prem = row["📅 Première Visite"]
+    date_proch = row["📅 Prochaine Visite"]
+    
+    # Formater les dates avec la fonction sécurisée
+    date_prem_str = formater_date_pour_db(date_prem)
+    date_proch_str = formater_date_pour_db(date_proch)
+    
+    # Ignorer si aucune date n'est remplie
+    if date_prem_str is None and date_proch_str is None:
+        continue
+    
+    # Préparer les données
+    data_dict = {
+        "Matricule": mat,
+        "Marque": voiture.upper(),
+        "Date_Mise_A_Jour": datetime.now().strftime("%Y-%m-%d"),
+        "Statut": "Active"
+    }
+    
+    if date_prem_str is not None:
+        data_dict["Date_Premiere_Visite"] = date_prem_str
+    
+    if date_proch_str is not None:
+        data_dict["Date_Prochaine_Visite"] = date_proch_str
                     
                     # Vérifier si existe déjà
                     if not df_visites.empty and 'Matricule' in df_visites.columns:
