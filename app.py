@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# --- Compatibilité Streamlit (rerun) ---
 if hasattr(st, "rerun"):
     rerun = st.rerun
 elif hasattr(st, "experimental_rerun"):
@@ -14,12 +15,14 @@ elif hasattr(st, "experimental_rerun"):
 else:
     def rerun(): pass
 
+# --- Compatibilité pandas ---
 def style_apply(df_style, func, **kwargs):
     try:
         return df_style.map(func, **kwargs)
     except AttributeError:
         return df_style.applymap(func, **kwargs)
 
+# --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="BBNH OS — Gestion Premium",
     layout="wide",
@@ -27,6 +30,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- STYLE CSS ---
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
@@ -77,43 +81,6 @@ div.stButton > button:hover {
     transform: translateY(-1px);
     box-shadow: 0 5px 15px rgba(230, 0, 0, 0.5);
 }
-/* 🆕 STYLES POUR ALERTES VISITE TECHNIQUE */
-.alerte-urgent {
-    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-    color: white; padding: 15px; border-radius: 10px;
-    margin: 10px 0; font-weight: bold;
-    border-left: 5px solid #fbbf24;
-}
-.alerte-warning {
-    background: linear-gradient(135deg, #f97316 0%, #c2410c 100%);
-    color: white; padding: 12px; border-radius: 10px;
-    margin: 8px 0; font-weight: 600;
-}
-.alerte-ok {
-    background: linear-gradient(135deg, #16a34a 0%, #166534 100%);
-    color: white; padding: 10px; border-radius: 10px;
-    margin: 5px 0;
-}
-.jours-restants-urgent {
-    background-color: #dc2626 !important;
-    color: white !important;
-    font-weight: bold !important;
-    padding: 5px 10px;
-    border-radius: 5px;
-}
-.jours-restants-warning {
-    background-color: #f97316 !important;
-    color: white !important;
-    font-weight: bold !important;
-    padding: 5px 10px;
-    border-radius: 5px;
-}
-.jours-restants-ok {
-    background-color: #16a34a !important;
-    color: white !important;
-    padding: 5px 10px;
-    border-radius: 5px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -125,128 +92,123 @@ def init_supabase():
     try:
         url = st.secrets.get("SUPABASE_URL", "")
         key = st.secrets.get("SUPABASE_KEY", "")
-        if not url or not key: return None
+        if not url or not key:
+            return None
         return create_client(url, key)
     except Exception as e:
-        st.error(f"❌ Erreur connexion Supabase : {e}")
+        st.error(f" Erreur connexion Supabase : {e}")
         return None
 
 supabase = init_supabase()
 
 if supabase is None:
-    st.error("🔴 **Connexion Supabase impossible**")
+    st.error(" **Connexion Supabase impossible**")
     st.stop()
 
+# Noms des tables
 T_CLIENT = "client"
 T_VEHICULE = "vehicule"
 T_MOUVEMENT = "mouvement"
 T_VIDANGE = "vidange"
 T_CONTRAT = "carbbnh"
-T_VISITE_TECHNIQUE = "visite_technique"
 
+# Clé primaire pour la table mouvement
 MOUV_KEY_COLUMN = "Num_Contrat"
 
 # ============================================================
 # FONCTIONS UTILITAIRES
 # ============================================================
 def safe_str(val, default=""):
-    if val is None: return default
-    if isinstance(val, float) and pd.isna(val): return default
+    if val is None:
+        return default
+    if isinstance(val, float) and pd.isna(val):
+        return default
     s = str(val).strip()
-    if s.lower() in ('nan', 'none', ''): return default
+    if s.lower() in ('nan', 'none', ''):
+        return default
     return s
 
 def safe_int(val, default=0):
     try:
-        if val is None or (isinstance(val, float) and pd.isna(val)): return default
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return default
         return int(float(str(val).replace(' ', '').replace(',', '.')))
-    except: return default
+    except Exception:
+        return default
 
 def safe_float(val, default=0.0):
     try:
-        if val is None or (isinstance(val, float) and pd.isna(val)): return default
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return default
         return float(str(val).replace(' ', '').replace(',', '.'))
-    except: return default
+    except Exception:
+        return default
 
 def encoder_image_base64(file_buffer):
-    if file_buffer is None: return ""
-    try: return base64.b64encode(file_buffer.getvalue()).decode()
-    except: return ""
+    if file_buffer is None:
+        return ""
+    try:
+        return base64.b64encode(file_buffer.getvalue()).decode()
+    except Exception:
+        return ""
 
 def formater_heure_propre(valeur):
-    if valeur is None or (isinstance(valeur, float) and pd.isna(valeur)): return '00:00'
-    if isinstance(valeur, (datetime, time)): return valeur.strftime('%H:%M')
+    if valeur is None or (isinstance(valeur, float) and pd.isna(valeur)):
+        return '00:00'
+    if isinstance(valeur, (datetime, time)):
+        return valeur.strftime('%H:%M')
     val_str = safe_str(valeur, '00:00')
     if " " in val_str:
-        try: val_str = val_str.split(" ")[1]
-        except: pass
+        try:
+            val_str = val_str.split(" ")[1]
+        except Exception:
+            pass
     parts = val_str.split(":")
-    if len(parts) >= 2: return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
+    if len(parts) >= 2:
+        return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
     return '00:00'
 
 def parse_date(val):
-    if val is None: return None
-    if isinstance(val, datetime): return val.date() if hasattr(val, 'date') else val
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val.date() if hasattr(val, 'date') else val
     if hasattr(val, 'date') and callable(val.date):
-        try: return val.date()
-        except: pass
+        try:
+            return val.date()
+        except Exception:
+            pass
     s = safe_str(val)
-    if not s: return None
+    if not s:
+        return None
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"):
-        try: return datetime.strptime(s, fmt).date()
-        except: pass
-    try: return pd.to_datetime(s).date()
-    except: return None
+        try:
+            return datetime.strptime(s, fmt).date()
+        except Exception:
+            pass
+    try:
+        return pd.to_datetime(s).date()
+    except Exception:
+        return None
 
 def parse_client_label(label):
     try:
-        if not label or label == "-- Entrée manuelle --": return "", ""
+        if not label or label == "-- Entrée manuelle --":
+            return "", ""
         if " (CIN: " in label:
             parts = label.split(" (CIN: ")
             return parts[0].strip(), parts[1].replace(")", "").strip()
         return label.strip(), ""
-    except: return safe_str(label), ""
+    except Exception:
+        return safe_str(label), ""
 
 def est_une_reservation(type_statut):
     try:
         s = str(type_statut).strip().lower()
         s = s.replace('é', 'e').replace('è', 'e').replace('ê', 'e')
         return 'reserv' in s or 'resa' in s or 'booking' in s
-    except: return False
-
-# 🆕 FONCTION POUR CALCULER LES JOURS RESTANTS
-def calculer_jours_restants(date_prochaine):
-    """Calcule automatiquement les jours restants avant la prochaine visite"""
-    if date_prochaine is None or (isinstance(date_prochaine, float) and pd.isna(date_prochaine)):
-        return None
-    try:
-        if isinstance(date_prochaine, datetime):
-            date_prochaine = date_prochaine.date()
-        elif isinstance(date_prochaine, str):
-            date_prochaine = parse_date(date_prochaine)
-        if date_prochaine is None:
-            return None
-        today = datetime.now().date()
-        return (date_prochaine - today).days
-    except:
-        return None
-
-# 🆕 FONCTION POUR GÉNÉRER L'ALERTE SELON LES JOURS RESTANTS
-def generer_alerte(jours_restants):
-    """Génère une alerte HTML selon le nombre de jours restants"""
-    if jours_restants is None:
-        return '<span style="color:#9ca3af;">Non défini</span>'
-    
-    if jours_restants < 0:
-        return f'<span class="jours-restants-urgent">🔴 ÉCHU depuis {-jours_restants} jour(s)</span>'
-    elif jours_restants == 0:
-        return f'<span class="jours-restants-urgent">🔴 AUJOURD\'HUI !</span>'
-    elif jours_restants <= 15:
-        return f'<span class="jours-restants-urgent">⚠️ Dans {jours_restants} jour(s)</span>'
-    elif jours_restants <= 30:
-        return f'<span class="jours-restants-warning">🟠 Dans {jours_restants} jour(s)</span>'
-    else:
-        return f'<span class="jours-restants-ok">✅ Dans {jours_restants} jour(s)</span>'
+    except Exception:
+        return False
 
 # ============================================================
 # ⚡ FONCTIONS DATABASE
@@ -255,7 +217,7 @@ def fetch_table_direct(table_name):
     try:
         response = supabase.table(table_name).select("*").execute()
         return pd.DataFrame(response.data) if response.data else pd.DataFrame()
-    except:
+    except Exception:
         return pd.DataFrame()
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -266,7 +228,7 @@ def get_all_tables():
         try:
             response = supabase.table(table_name).select("*").execute()
             return table_name, pd.DataFrame(response.data) if response.data else pd.DataFrame()
-        except:
+        except Exception:
             return table_name, pd.DataFrame()
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = {executor.submit(fetch, t): t for t in tables}
@@ -309,15 +271,19 @@ def delete_row(table_name, column, value):
 
 def delete_all(table_name):
     try:
-        try: supabase.table(table_name).delete().neq("id", 0).execute()
-        except:
-            try: supabase.table(table_name).delete().gte("id", 0).execute()
-            except:
+        try:
+            supabase.table(table_name).delete().neq("id", 0).execute()
+        except Exception:
+            try:
+                supabase.table(table_name).delete().gte("id", 0).execute()
+            except Exception:
                 df = get_all(table_name)
                 if not df.empty and 'id' in df.columns:
                     for id_val in df['id'].tolist():
-                        try: supabase.table(table_name).delete().eq("id", id_val).execute()
-                        except: pass
+                        try:
+                            supabase.table(table_name).delete().eq("id", id_val).execute()
+                        except Exception:
+                            pass
         return True
     except Exception as e:
         st.error(f"Erreur delete all ({table_name}): {e}")
@@ -346,6 +312,7 @@ def upsert_vidange(matricule, marque, km_recent=0):
         return False
 
 def transformer_reservation_en_contrat(num_contrat):
+    """Transforme un mouvement en contrat - Utilise Num_Contrat comme clé"""
     try:
         df_mouvs = fetch_table_direct(T_MOUVEMENT)
         df_clients = fetch_table_direct(T_CLIENT)
@@ -462,13 +429,13 @@ with st.sidebar:
         st.markdown("<h1 style='text-align: center; color: #e60000; font-weight:800; margin-bottom:0;'>BBNH</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; opacity: 0.5; font-size:13px; letter-spacing:4px; margin-bottom:25px;'>RENT A CAR</p>", unsafe_allow_html=True)
 
-    if st.button("🔄 RAFRAÎCHIR LES DONNÉES", use_container_width=True):
+    if st.button(" RAFRAÎCHIR LES DONNÉES", use_container_width=True):
         st.session_state["force_reload"] = True
         rerun()
     
     st.markdown("<h3 style='margin-bottom:10px;'>🕹️ CONSOLE D'ACTION :</h3>", unsafe_allow_html=True)
     menu_action = st.radio(" ", [
-        "🔍 Mode Visionneuse",
+        " Mode Visionneuse",
         "📝 Nouveau Contrat / Réservation",
         "🚗 Ajouter un Véhicule à la Flotte",
         "🗑️ Supprimer un Véhicule de la Flotte",
@@ -480,10 +447,10 @@ with st.sidebar:
     st.markdown("<br><hr>", unsafe_allow_html=True)
 
 # ============================================================
-# 📝 NOUVEAU CONTRAT
+#  NOUVEAU CONTRAT
 # ============================================================
 if menu_action == "📝 Nouveau Contrat / Réservation":
-    st.sidebar.markdown("### 📝 Éditer une nouvelle fiche")
+    st.sidebar.markdown("###  Éditer une nouvelle fiche")
     nature = st.sidebar.selectbox("Nature : ", ["Contrat Location", "Réservation", "Maintenance / Garage"])
     vehicule = st.sidebar.selectbox("Véhicule : ", liste_vehicules_opt) if liste_vehicules_opt else st.sidebar.text_input("Véhicule (matricule) : ")
     client_b = st.sidebar.selectbox("Client : ", liste_clients_opt)
@@ -513,7 +480,7 @@ if menu_action == "📝 Nouveau Contrat / Réservation":
     info_note = st.sidebar.text_area("Note complémentaire : ")
     ref = st.sidebar.text_input("Code Contrat unique : ", f"BBNH-{datetime.now().strftime('%d%H%M%S')}")
 
-    if st.sidebar.button("⚡ ENREGISTRER ON THE PLANNING"):
+    if st.sidebar.button(" ENREGISTRER ON THE PLANNING"):
         try:
             if client_b == "-- Entrée manuelle --":
                 nom_f, cin_f = nom_m, cin_m
@@ -585,6 +552,7 @@ elif menu_action == "🚗 Ajouter un Véhicule à la Flotte":
                     upsert_vidange(nouveau_matricule, nouvelle_marque, 0)
                     st.success("✅ Véhicule enregistré !")
                     get_all_tables.clear()
+                    st.session_state["force_reload"] = True
                     rerun()
             else:
                 st.error("❌ Tous les champs obligatoires doivent être remplis")
@@ -601,6 +569,7 @@ elif menu_action == "🗑️ Supprimer un Véhicule de la Flotte":
                     delete_row(T_VIDANGE, "Matricule", matricule_pure)
                     st.success("✅ Véhicule retiré.")
                     get_all_tables.clear()
+                    st.session_state["force_reload"] = True
                     rerun()
     else:
         st.sidebar.info("Aucun véhicule dans la flotte.")
@@ -691,11 +660,11 @@ elif menu_action == "⚙️ Modifier un Dossier (Contrat/Réservation)":
                     st.sidebar.markdown(f"**🔢 Durée :** `{mod_nbr_jours} jour(s)`")
                     init_jours_orig = max(1, (init_date_fin - init_date_deb).days)
                     init_prix_unit_calc = int(init_prix / init_jours_orig) if init_prix > 0 else 100
-                    mod_prix_unitaire = st.sidebar.number_input("💰 Prix / Jour (DT) : ", min_value=0, value=init_prix_unit_calc if init_prix_unit_calc > 0 else 100, key=f"mod_pu_{selected_key}")
+                    mod_prix_unitaire = st.sidebar.number_input(" Prix / Jour (DT) : ", min_value=0, value=init_prix_unit_calc if init_prix_unit_calc > 0 else 100, key=f"mod_pu_{selected_key}")
                     mod_prix = st.sidebar.number_input("Prix Total (DT) : ", value=int(mod_nbr_jours * mod_prix_unitaire), key=f"mod_tot_{selected_key}")
                     mod_caution = st.sidebar.number_input("Caution (DT) : ", value=int(init_caution), key=f"mod_cau_{selected_key}")
                     mod_reste = mod_prix - mod_caution
-                    st.sidebar.markdown(f"**🔴 Reste :** `{mod_reste} DT`")
+                    st.sidebar.markdown(f"** Reste :** `{mod_reste} DT`")
                     st.sidebar.markdown("---")
                     mod_lieu = st.sidebar.text_input("Lieu Réception : ", value=init_lieu, key=f"mod_lieu_{selected_key}")
                     mod_vol = st.sidebar.text_input("N° Vol : ", value=init_vol, key=f"mod_vol_{selected_key}")
@@ -768,7 +737,7 @@ elif menu_action == "❌ Supprimer une opération":
                         else:
                             st.error("❌ Clé invalide")
         else:
-            st.sidebar.info("📭 Aucune opération à supprimer.")
+            st.sidebar.info(" Aucune opération à supprimer.")
     else:
         st.sidebar.info("Aucune opération à supprimer.")
 
@@ -777,7 +746,7 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
     st.sidebar.info("💡 Cette action convertit une **Réservation** en **Contrat Location** officiel.")
     df_mouvs_fresh = fetch_table_direct(T_MOUVEMENT)
     if not df_mouvs_fresh.empty:
-        st.sidebar.markdown(f"**📊 Total mouvements :** `{len(df_mouvs_fresh)}`")
+        st.sidebar.markdown(f"** Total mouvements :** `{len(df_mouvs_fresh)}`")
         if 'Type_Statut' in df_mouvs_fresh.columns:
             types_uniques = df_mouvs_fresh['Type_Statut'].dropna().unique().tolist()
             st.sidebar.markdown(f"**📋 Types :** {', '.join([str(t) for t in types_uniques])}")
@@ -823,13 +792,13 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
                         st.markdown("**📝 Détails du mouvement :**")
                         st.write(f"🔑 **Num Contrat :** `{key_resa}`")
                         st.write(f"🚗 **Véhicule :** {safe_str(row_resa.get('Matricule', 'N/A'))}")
-                        st.write(f"👤 **Client :** {safe_str(row_resa.get('Client', 'N/A'))}")
+                        st.write(f" **Client :** {safe_str(row_resa.get('Client', 'N/A'))}")
                         st.write(f"📋 **Type :** {safe_str(row_resa.get('Type_Statut', 'N/A'))}")
                         st.write(f"📅 **Période :** {safe_str(row_resa.get('Date_Debut', ''))} → {safe_str(row_resa.get('Date_Fin', ''))}")
                         st.write(f"💰 **Montant :** {safe_float(row_resa.get('Prix', 0)):,.2f} DT")
                         st.markdown("---")
-                confirmer_transformation = st.checkbox("⚠️ Je confirme la transformation (cette action est irréversible)")
-                if st.form_submit_button("🔄 TRANSFORMER EN CONTRAT", use_container_width=True, type="primary"):
+                confirmer_transformation = st.checkbox("️ Je confirme la transformation (cette action est irréversible)")
+                if st.form_submit_button(" TRANSFORMER EN CONTRAT", use_container_width=True, type="primary"):
                     if confirmer_transformation:
                         key_resa = key_map_resa.get(resa_selectionnee, '')
                         if key_resa:
@@ -845,7 +814,7 @@ elif menu_action == "🔄 Transformer Réservation → Contrat":
                         else:
                             st.error("❌ Clé invalide")
                     else:
-                        st.warning("⚠️ Veuillez cocher la case de confirmation pour continuer")
+                        st.warning("️ Veuillez cocher la case de confirmation pour continuer")
         else:
             st.sidebar.error("❌ Aucun mouvement valide dans la liste")
     else:
@@ -883,12 +852,13 @@ with st.container(border=True):
             df_disp_aff = df_disponibles[cols_aff].rename(columns={'Matricule': '🚘 Matricule', 'Marque': 'Marque', 'Modèle': 'Modèle', 'Année': 'Année'})
             st.dataframe(df_disp_aff, use_container_width=True, hide_index=True)
         else:
-            st.warning(f"❌ Aucun véhicule disponible.")
+            st.warning(f" Aucun véhicule disponible.")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-tab_planning, tab_logistique, tab_analytics, tab_vidange, tab_visite_tech, tab_crm, tab_admin = st.tabs([
-    "🗓️ CORE PLANNING", "🔑 BOX RECEPTION", "📊 PERFORMANCES", "🔧 VIDANGES", "🔍 VISITE TECHNIQUE", "👥 CRM", "⚙️ ADMIN"
+# ✅ 6 ONGLETS (Visite Technique supprimée)
+tab_planning, tab_logistique, tab_analytics, tab_vidange, tab_crm, tab_admin = st.tabs([
+    "🗓️ CORE PLANNING", "🔑 BOX RECEPTION", "📊 PERFORMANCES", "🔧 VIDANGES", "👥 CRM", "️ ADMIN"
 ])
 
 # --- TAB 1 : PLANNING ---
@@ -947,9 +917,9 @@ with tab_planning:
                             if "garage" in s_v or "maintenance" in s_v:
                                 suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
                             elif "réservation" in s_v or "reservation" in s_v:
-                                suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                suivi_jours[m_v][key_day]["desc"] = f" [{h_deb_label}➔{h_fin_label}] {client_v}"
                             else:
-                                suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}{h_fin_label}] {client_v}"
                         current_day += timedelta(days=1)
             for idx, row in df_final_grid.iterrows():
                 mat_extracted = row["Flotte BBNH"].split("[")[-1].replace("]", "").strip()
@@ -1027,7 +997,7 @@ with tab_logistique:
                 if not res_dep.empty:
                     row_sel = res_dep.iloc[0]
                     diff_km = int(km_fin) - int(km_dep_de_base)
-                    st.markdown(f"**📊 Distance Parcourue :** <span style='color:#4ade80; font-weight:bold; font-size:22px;'>{diff_km} KM</span>", unsafe_allow_html=True)
+                    st.markdown(f"** Distance Parcourue :** <span style='color:#4ade80; font-weight:bold; font-size:22px;'>{diff_km} KM</span>", unsafe_allow_html=True)
                     st.write(f"**Reste dû :** {row_sel.get('Reste', '0')} DT")
         else:
             st.info("Aucun déplacement en cours.")
@@ -1036,7 +1006,7 @@ with tab_logistique:
 
 # --- TAB 3 : PERFORMANCE ---
 with tab_analytics:
-    st.markdown("### 📊 Chiffre d'Affaires & Synthèse Logistique du Jour")
+    st.markdown("###  Chiffre d'Affaires & Synthèse Logistique du Jour")
     day_target = st.date_input("Sélectionner la journée d'analyse :", datetime.now())
     if not df_mouvs.empty:
         df_stats = df_mouvs.copy()
@@ -1123,240 +1093,12 @@ with tab_vidange:
                     st.session_state["force_reload"] = True
                     rerun()
 
-# ============================================================
-# 🆕 TAB 5 : VISITE TECHNIQUE - AVEC CALCUL AUTO & ALERTES
-# ============================================================
-with tab_visite_tech:
-    st.markdown("### 🔍 Suivi des Visites Techniques")
-    st.info("💡 **Remplissez manuellement** les dates. Les **jours restants sont calculés automatiquement** et une **alerte s'affiche si moins de 15 jours**.")
-    
-    # Charger les données de visite technique
-    df_visites = fetch_table_direct(T_VISITE_TECHNIQUE)
-    
-    # Construire la liste de tous les véhicules de la flotte
-    liste_flotte = []
-    if not df_voitures.empty and 'Matricule' in df_voitures.columns:
-        for _, v in df_voitures.iterrows():
-            mat = safe_str(v.get('Matricule'))
-            marque = safe_str(v.get('Marque', ''))
-            modele = safe_str(v.get('Modèle', ''))
-            if mat:
-                voiture_info = f"{marque} {modele}".strip()
-                if not voiture_info:
-                    voiture_info = "Véhicule"
-                liste_flotte.append({
-                    "Voiture": voiture_info,
-                    "Matricule": mat
-                })
-    
-    if not liste_flotte:
-        st.warning("⚠️ Aucun véhicule dans la flotte. Ajoutez d'abord des véhicules via le menu **🚗 Ajouter un Véhicule**.")
-    else:
-        # 🆕 CONSTRUCTION DU TABLEAU AVEC CALCUL AUTO DES JOURS RESTANTS
-        tableau_data = []
-        today = datetime.now().date()
-        
-        for v in liste_flotte:
-            mat = v["Matricule"]
-            voiture = v["Voiture"]
-            
-            # Chercher dans les données existantes
-            row_vt = None
-            if not df_visites.empty and 'Matricule' in df_visites.columns:
-                matches = df_visites[df_visites['Matricule'].astype(str).str.strip() == mat.strip()]
-                if not matches.empty:
-                    row_vt = matches.iloc[0]
-            
-            # Dates par défaut
-            if row_vt is not None:
-                date_prem = parse_date(row_vt.get('Date_Premiere_Visite'))
-                date_proch = parse_date(row_vt.get('Date_Prochaine_Visite'))
-            else:
-                date_prem = None
-                date_proch = None
-            
-            # 🆕 CALCUL AUTOMATIQUE DES JOURS RESTANTS
-            jours_restants = calculer_jours_restants(date_proch)
-            
-            # 🆕 GÉNÉRATION DE L'ALERTE VISUELLE
-            alerte_html = generer_alerte(jours_restants)
-            
-            tableau_data.append({
-                "🚗 Voiture": voiture,
-                "🔢 Matricule": mat,
-                "📅 Première Visite": date_prem,
-                "📅 Prochaine Visite": date_proch,
-                "⏳ Jours Restants": jours_restants if jours_restants is not None else "—",
-                "🚨 Alerte": alerte_html
-            })
-        
-        df_tableau = pd.DataFrame(tableau_data)
-        
-        # 🆕 AFFICHAGE DES ALERTES EN HAUT (SI < 15 JOURS)
-        alertes_urgentes = df_tableau[df_tableau["⏳ Jours Restants"].apply(
-            lambda x: isinstance(x, int) and x <= 15
-        )]
-        
-        if not alertes_urgentes.empty:
-            st.markdown("---")
-            st.markdown('<div class="alerte-urgent">⚠️ <strong>ALERTE VISITE TECHNIQUE :</strong> ' + str(len(alertes_urgentes)) + ' véhicule(s) doivent passer la visite dans moins de 15 jours !</div>', unsafe_allow_html=True)
-            
-            for _, a in alertes_urgentes.iterrows():
-                jours = a['⏳ Jours Restants']
-                mat = a['🔢 Matricule']
-                voiture = a['🚗 Voiture']
-                date_proch = a['📅 Prochaine Visite']
-                
-                if isinstance(jours, int):
-                    if jours < 0:
-                        classe = "alerte-urgent"
-                        msg = f"🔴 **{voiture}** [{mat}] — Visite **ÉCHUE** depuis **{-jours} jour(s)** ! (Date : {date_proch})"
-                    elif jours == 0:
-                        classe = "alerte-urgent"
-                        msg = f"🔴 **{voiture}** [{mat}] — Visite **AUJOURD'HUI** !"
-                    else:
-                        classe = "alerte-warning"
-                        msg = f"🟠 **{voiture}** [{mat}] — Visite dans **{jours} jour(s)** (Date : {date_proch})"
-                    
-                    st.markdown(f'<div class="{classe}">{msg}</div>', unsafe_allow_html=True)
-            st.markdown("---")
-        else:
-            st.success("✅ Aucune visite technique urgente dans les 15 prochains jours.")
-        
-        st.markdown("#### 📋 Tableau de suivi - Cliquez sur une cellule pour modifier")
-        st.caption("💡 Les **jours restants** et **alertes** se recalculent automatiquement après modification de la date.")
-        
-        # 🆕 TABLEAU ÉDITABLE
-        edited_df = st.data_editor(
-            df_tableau,
-            column_config={
-                "🚗 Voiture": st.column_config.TextColumn("🚗 Voiture", disabled=True, width="medium"),
-                "🔢 Matricule": st.column_config.TextColumn("🔢 Matricule", disabled=True, width="small"),
-                "📅 Première Visite": st.column_config.DateColumn("📅 Première Visite", format="DD/MM/YYYY", width="small"),
-                "📅 Prochaine Visite": st.column_config.DateColumn("📅 Prochaine Visite", format="DD/MM/YYYY", width="small"),
-                "⏳ Jours Restants": st.column_config.TextColumn("⏳ Jours Restants", disabled=True, width="small"),
-                "🚨 Alerte": st.column_config.TextColumn("🚨 Alerte", disabled=True, width="large"),
-            },
-            hide_index=True,
-            use_container_width=True,
-            disabled=["🚗 Voiture", "🔢 Matricule", "⏳ Jours Restants", "🚨 Alerte"],
-            key="visite_tech_editor"
-        )
-        
-        # 🆕 BOUTON POUR RECALCULER ET AFFICHER LES ALERTES
-        col_recalc, col_save, col_recalc2 = st.columns([1, 2, 1])
-        with col_recalc:
-            if st.button("🔄 RECALCULER LES JOURS", use_container_width=True):
-                st.session_state["force_reload"] = True
-                rerun()
-        
-        with col_save:
-            if st.button("💾 ENREGISTRER LES MODIFICATIONS", use_container_width=True, type="primary"):
-                count_saved = 0
-                count_created = 0
-                errors = []
-                
-                for idx, row in edited_df.iterrows():
-                    mat = row["🔢 Matricule"]
-                    voiture = row["🚗 Voiture"]
-                    date_prem = row["📅 Première Visite"]
-                    date_proch = row["📅 Prochaine Visite"]
-                    
-                    # Ignorer si aucune date n'est remplie
-                    if pd.isna(date_prem) and pd.isna(date_proch):
-                        continue
-                    
-                    # Préparer les données
-                    data_dict = {
-                        "Matricule": mat,
-                        "Marque": voiture.upper(),
-                        "Date_Mise_A_Jour": datetime.now().strftime("%Y-%m-%d"),
-                        "Statut": "Active"
-                    }
-                    
-                    if pd.notna(date_prem):
-                        if isinstance(date_prem, datetime):
-                            data_dict["Date_Premiere_Visite"] = date_prem.strftime("%Y-%m-%d")
-                        else:
-                            data_dict["Date_Premiere_Visite"] = date_prem.strftime("%Y-%m-%d")
-                    
-                    if pd.notna(date_proch):
-                        if isinstance(date_proch, datetime):
-                            data_dict["Date_Prochaine_Visite"] = date_proch.strftime("%Y-%m-%d")
-                        else:
-                            data_dict["Date_Prochaine_Visite"] = date_proch.strftime("%Y-%m-%d")
-                    
-                    # Vérifier si existe déjà
-                    if not df_visites.empty and 'Matricule' in df_visites.columns:
-                        exists = not df_visites[df_visites['Matricule'].astype(str).str.strip() == mat.strip()].empty
-                    else:
-                        exists = False
-                    
-                    try:
-                        if exists:
-                            update_data = {k: v for k, v in data_dict.items() if k != "Matricule"}
-                            ok = update_row(T_VISITE_TECHNIQUE, update_data, "Matricule", mat)
-                            if ok:
-                                count_saved += 1
-                            else:
-                                errors.append(mat)
-                        else:
-                            ok = insert_row(T_VISITE_TECHNIQUE, data_dict)
-                            if ok:
-                                count_created += 1
-                            else:
-                                errors.append(mat)
-                    except Exception as e:
-                        errors.append(f"{mat}: {e}")
-                
-                if count_saved > 0 or count_created > 0:
-                    msg = ""
-                    if count_saved > 0:
-                        msg += f"✅ {count_saved} fiche(s) mise(s) à jour"
-                    if count_created > 0:
-                        if msg: msg += " | "
-                        msg += f"✅ {count_created} fiche(s) créée(s)"
-                    st.success(msg)
-                    
-                    if errors:
-                        st.warning(f"⚠️ Erreurs sur : {', '.join(errors)}")
-                    
-                    get_all_tables.clear()
-                    st.session_state["force_reload"] = True
-                    rerun()
-                else:
-                    if errors:
-                        st.error(f"❌ Erreurs : {', '.join(errors)}")
-                    else:
-                        st.info("ℹ️ Aucune modification à enregistrer.")
-        
-        with col_recalc2:
-            if st.button("🔄 Rafraîchir", use_container_width=True):
-                get_all_tables.clear()
-                st.session_state["force_reload"] = True
-                rerun()
-        
-        # Légende des couleurs
-        st.markdown("---")
-        st.markdown("**🎨 Légende des alertes automatiques :**")
-        col_l1, col_l2, col_l3, col_l4 = st.columns(4)
-        with col_l1:
-            st.markdown('<div class="jours-restants-urgent">🔴 ÉCHU / < 15 jours</div>', unsafe_allow_html=True)
-        with col_l2:
-            st.markdown('<div class="jours-restants-warning">🟠 < 30 jours</div>', unsafe_allow_html=True)
-        with col_l3:
-            st.markdown('<div class="jours-restants-ok">✅ > 30 jours</div>', unsafe_allow_html=True)
-        with col_l4:
-            st.markdown("**⚠️ Alerte automatique** si < 15 jours")
-
-# ============================================================
-# TAB 6 : CRM
-# ============================================================
+# --- TAB 5 : CRM ---
 with tab_crm:
     st.markdown("### 👥 Banque d'Information des Conducteurs & Profils Clients")
     c1, c2 = st.columns([5, 4])
     with c1:
-        st.markdown("#### 🔍 Consultation & Actions")
+        st.markdown("####  Consultation & Actions")
         search_query = st.text_input("Rechercher un profil (Nom, Prénom, CIN) : ", key="crm_search_field")
         if search_query and not df_clients.empty:
             mask = df_clients['Nom'].str.contains(search_query, case=False, na=False)
@@ -1406,7 +1148,7 @@ with tab_crm:
                         if st.session_state.get(f"mode_edition_{unique_suffix}", False):
                             st.markdown("<br>", unsafe_allow_html=True)
                             with st.form(key=f"form_reel_edit_{unique_suffix}"):
-                                st.markdown("##### 📝 Édition des informations")
+                                st.markdown("#####  Édition des informations")
                                 e_prenom = st.text_input("Prénom", value=safe_str(cli.get('Prénom')))
                                 e_nom = st.text_input("Nom", value=safe_str(cli.get('Nom')))
                                 e_tel = st.text_input("Téléphone", value=safe_str(cli.get('Numéro de téléphone')))
@@ -1449,9 +1191,7 @@ with tab_crm:
                 else:
                     st.error("❌ Veuillez remplir les champs obligatoires (*)")
 
-# ============================================================
-# TAB 7 : ADMIN
-# ============================================================
+# --- TAB 6 : ADMIN ---
 with tab_admin:
     st.markdown("### ⚙️ Panneau de Configuration Système")
     st.warning("⚠️ Attention : Ces actions sont irréversibles.")
