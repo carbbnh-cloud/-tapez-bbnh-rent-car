@@ -234,8 +234,8 @@ div.stButton > button:hover {
 # Base de données des utilisateurs (vous pouvez modifier ces identifiants)
 UTILISATEURS = {
     "admin": {
-        "password": "admin123",
-        "nom": "Administrateur",
+        "password": "bbnh",
+        "nom": "carbbnh",
         "role": "Admin"
     },
     "manager": {
