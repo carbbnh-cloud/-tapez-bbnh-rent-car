@@ -1129,7 +1129,7 @@ with tab_planning:
                             if "garage" in s_v or "maintenance" in s_v:
                                 suivi_jours[m_v][key_day]["desc"] = f"🛠️ GARAGE : {client_v}"
                             elif "réservation" in s_v or "reservation" in s_v:
-                                suivi_jours[m_v][key_day]["desc"] = f"🟣 [{h_deb_label}➔{h_fin_label}] {client_v}"
+                                suivi_jours[m_v][key_day]["desc"] = f"🔴 [{h_deb_label}➔{h_fin_label}] {client_v}"
                             else:
                                 suivi_jours[m_v][key_day]["desc"] = f"🟢 [{h_deb_label}➔{h_fin_label}] {client_v}"
                         current_day += timedelta(days=1)
@@ -1153,7 +1153,7 @@ with tab_planning:
                 elif "🛠️" in val_str:
                     return "background-color: #eab308; color: #1e1b4b; font-weight: 700; font-size: 11px;"
                 elif "🟣" in val_str:
-                    return "background-color: #8b5cf6; color: #ffffff; font-weight: 600; font-size: 11px;"
+                    return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
                 elif "🔴" in val_str:
                     return "background-color: #dc2626; color: #ffffff; font-weight: 600; font-size: 11px;"
                 elif "🟢" in val_str:
